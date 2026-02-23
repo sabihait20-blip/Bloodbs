@@ -12,12 +12,15 @@ function cn(...inputs: ClassValue[]) {
 export const DonorCard: React.FC<{ 
   donor: Donor; 
   isAdmin?: boolean;
+  currentUserId?: string;
   onEdit?: (donor: Donor) => void;
   onDelete?: (id: string) => void;
-}> = ({ donor, isAdmin, onEdit, onDelete }) => {
+}> = ({ donor, isAdmin, currentUserId, onEdit, onDelete }) => {
   const whatsappUrl = donor.whatsappNumber 
     ? `https://wa.me/${donor.whatsappNumber.replace(/\D/g, '')}` 
     : null;
+
+  const canEdit = isAdmin || (currentUserId && donor.userId === currentUserId);
 
   return (
     <motion.div
@@ -28,8 +31,8 @@ export const DonorCard: React.FC<{
       whileHover={{ y: -5 }}
       className="relative overflow-hidden bg-white rounded-2xl shadow-xl border border-slate-100 group"
     >
-      {/* Admin Controls */}
-      {isAdmin && (
+      {/* Admin/Owner Controls */}
+      {canEdit && (
         <div className="absolute top-4 right-4 z-20 flex gap-2">
           <button
             onClick={() => onEdit?.(donor)}
@@ -38,13 +41,15 @@ export const DonorCard: React.FC<{
           >
             <Edit2 size={16} />
           </button>
-          <button
-            onClick={() => onDelete?.(donor.id)}
-            className="p-2 bg-white/90 backdrop-blur shadow-sm rounded-full text-slate-600 hover:text-red-600 hover:bg-white transition-all"
-            title="Delete"
-          >
-            <Trash2 size={16} />
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onDelete?.(donor.id)}
+              className="p-2 bg-white/90 backdrop-blur shadow-sm rounded-full text-slate-600 hover:text-red-600 hover:bg-white transition-all"
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       )}
 

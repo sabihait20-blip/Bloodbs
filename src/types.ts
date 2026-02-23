@@ -1,5 +1,11 @@
 export type BloodGroup = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface Donor {
   id: string;
   name: string;
@@ -11,4 +17,5 @@ export interface Donor {
   available: boolean;
   facebookUrl?: string;
   whatsappNumber?: string;
+  userId?: string;
 }

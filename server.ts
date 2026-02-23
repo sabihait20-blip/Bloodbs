@@ -12,6 +12,15 @@ const db = new Database("donors.db");
 
 // টেবিল তৈরি যদি না থাকে
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS donors (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -22,28 +31,84 @@ db.exec(`
     image TEXT NOT NULL,
     available INTEGER NOT NULL,
     facebookUrl TEXT,
-    whatsappNumber TEXT
+    whatsappNumber TEXT,
+    userId TEXT,
+    FOREIGN KEY(userId) REFERENCES users(id)
   )
 `);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
-  // দাতা তালিকা পাওয়ার API
+  // --- Auth API ---
+  app.post("/api/auth/register", (req, res) => {
+    const { 
+      name, email, password, 
+      bloodGroup, location, phone, 
+      lastDonated, image, facebookUrl, whatsappNumber 
+    } = req.body;
+    
+    const userId = Math.random().toString(36).substr(2, 9);
+    const donorId = Math.random().toString(36).substr(2, 9);
+    
+    try {
+      const dbTransaction = db.transaction(() => {
+        // Create User
+        const userStmt = db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)");
+        userStmt.run(userId, name, email, password);
+
+        // Create Donor Profile
+        const donorStmt = db.prepare(`
+          INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, facebookUrl, whatsappNumber, userId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        donorStmt.run(
+          donorId,
+          name,
+          bloodGroup,
+          location,
+          phone,
+          lastDonated,
+          image || `https://picsum.photos/seed/${userId}/400/400`,
+          1, // available by default
+          facebookUrl || null,
+          whatsappNumber || null,
+          userId
+        );
+      });
+
+      dbTransaction();
+      res.status(201).json({ id: userId, name, email });
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(400).json({ error: "Email already exists or invalid data" });
+    }
+  });
+
+  app.post("/api/auth/login", (req, res) => {
+    const { email, password } = req.body;
+    const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
+    if (user) {
+      res.json({ id: user.id, name: user.name, email: user.email });
+    } else {
+      res.status(401).json({ error: "Invalid credentials" });
+    }
+  });
+
+  // --- Donor API ---
   app.get("/api/donors", (req, res) => {
     const donors = db.prepare("SELECT * FROM donors").all();
     res.json(donors.map(d => ({ ...d, available: Boolean(d.available) })));
   });
 
-  // নতুন দাতা যোগ করার API
   app.post("/api/donors", (req, res) => {
     const donor = req.body;
     const stmt = db.prepare(`
-      INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, facebookUrl, whatsappNumber)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, facebookUrl, whatsappNumber, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       donor.id,
@@ -55,15 +120,24 @@ async function startServer() {
       donor.image,
       donor.available ? 1 : 0,
       donor.facebookUrl || null,
-      donor.whatsappNumber || null
+      donor.whatsappNumber || null,
+      donor.userId || null
     );
     res.status(201).json(donor);
   });
 
-  // তথ্য এডিট করার API
   app.put("/api/donors/:id", (req, res) => {
     const { id } = req.params;
     const donor = req.body;
+    
+    // Check ownership if userId is provided
+    if (donor.userId) {
+      const existing = db.prepare("SELECT userId FROM donors WHERE id = ?").get(id) as any;
+      if (existing && existing.userId && existing.userId !== donor.userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+    }
+
     const stmt = db.prepare(`
       UPDATE donors 
       SET name = ?, bloodGroup = ?, location = ?, phone = ?, lastDonated = ?, image = ?, available = ?, facebookUrl = ?, whatsappNumber = ?

@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff } from 'lucide-react';
+import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
+import { AuthModal } from './components/AuthModal';
 import { MOCK_DONORS } from './constants';
-import { BloodGroup, Donor } from './types';
+import { BloodGroup, Donor, User } from './types';
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -13,18 +14,27 @@ export default function App() {
   const [selectedGroup, setSelectedGroup] = useState<BloodGroup | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // সার্ভার থেকে ডাটা আনা
+  // Load user from localStorage on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('blood_user');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  // Fetch donors from API on mount
   const fetchDonors = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/donors');
       if (response.ok) {
         const data = await response.json();
-        // যদি সার্ভারে কোনো ডাটা না থাকে তবে মক ডাটা দেখাবে
         setDonors(data.length > 0 ? data : MOCK_DONORS);
       }
     } catch (error) {
@@ -41,10 +51,11 @@ export default function App() {
 
   const handleAddDonor = async (newDonor: Donor) => {
     try {
+      const donorWithUser = { ...newDonor, userId: currentUser?.id };
       const response = await fetch('/api/donors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newDonor),
+        body: JSON.stringify(donorWithUser),
       });
       if (response.ok) {
         fetchDonors();
@@ -83,6 +94,17 @@ export default function App() {
         alert('তথ্য মুছতে সমস্যা হয়েছে।');
       }
     }
+  };
+
+  const handleAuthSuccess = (user: User) => {
+    setCurrentUser(user);
+    localStorage.setItem('blood_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setIsAdmin(false);
+    localStorage.removeItem('blood_user');
   };
 
   const toggleAdmin = () => {
@@ -125,26 +147,38 @@ export default function App() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={toggleAdmin}
-              className={`p-2 rounded-full transition-colors ${isAdmin ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              title={isAdmin ? "অ্যাডমিন মোড বন্ধ করুন" : "অ্যাডমিন মোড চালু করুন"}
-            >
-              {isAdmin ? <ShieldOff size={20} /> : <Shield size={20} />}
-            </button>
-            <button 
-              onClick={() => {
-                setEditingDonor(null);
-                setIsModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-full font-semibold hover:bg-red-100 transition-colors"
-            >
-              <Plus size={20} />
-              <span className="hidden sm:inline">দাতা হিসেবে যোগ দিন</span>
-            </button>
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-slate-700">
+                  <UserIcon size={16} className="text-red-500" />
+                  <span className="text-sm font-medium">{currentUser.name}</span>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors"
+                  title="লগআউট"
+                >
+                  <LogOut size={20} />
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-full font-semibold hover:bg-slate-200 transition-colors"
+              >
+                <LogIn size={20} />
+                <span className="hidden sm:inline">লগইন</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        onAuthSuccess={handleAuthSuccess} 
+      />
 
       <AddDonorModal 
         isOpen={isModalOpen || !!editingDonor} 
@@ -284,6 +318,7 @@ export default function App() {
                   key={donor.id} 
                   donor={donor} 
                   isAdmin={isAdmin}
+                  currentUserId={currentUser?.id}
                   onEdit={(d) => setEditingDonor(d)}
                   onDelete={handleDeleteDonor}
                 />
@@ -306,21 +341,31 @@ export default function App() {
       </main>
 
       {/* Footer / Contact */}
-      <footer className="mt-20 border-t border-slate-100 pt-12 pb-8 bg-white">
+      <footer className="mt-20 border-t border-slate-100 pt-12 pb-8 bg-slate-900 text-white">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Heart className="text-red-600 fill-current" size={20} />
-            <span className="font-bold text-slate-900">রক্তদান ডট কম</span>
+            <span className="font-bold text-white">রক্তদান ডট কম</span>
           </div>
-          <p className="text-slate-500 text-sm max-w-md mx-auto mb-8">
+          <p className="text-slate-400 text-sm max-w-md mx-auto mb-8">
             আমাদের লক্ষ্য প্রতিটি মুমূর্ষু রোগীর জন্য সঠিক সময়ে রক্তের ব্যবস্থা করা। আপনার একটি মহৎ কাজ বাঁচাতে পারে একটি প্রাণ।
           </p>
-          <div className="flex items-center justify-center gap-6 text-slate-400">
-            <a href="#" className="hover:text-red-600 transition-colors">ফেসবুক</a>
-            <a href="#" className="hover:text-red-600 transition-colors">টুইটার</a>
-            <a href="#" className="hover:text-red-600 transition-colors">ইনস্টাগ্রাম</a>
+          
+          <div className="py-6">
+            <p className="text-xl font-bold tracking-wider">
+              <span className="text-slate-300">Made With ❤️ </span>
+              <a 
+                href="https://www.facebook.com/Nurnoby.rohman.99" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="neon-text hover:text-white transition-colors inline-block"
+              >
+                নুরনবী রহমান
+              </a>
+            </p>
           </div>
-          <p className="mt-12 text-xs text-slate-400">
+
+          <p className="mt-8 text-xs text-slate-500">
             © ২০২৬ রক্তদান - জীবন বাঁচান। সকল অধিকার সংরক্ষিত।
           </p>
         </div>
