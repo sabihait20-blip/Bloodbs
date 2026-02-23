@@ -22,6 +22,10 @@ if (!fs.existsSync(dbDir)) {
 
 const db = new Database(dbPath);
 
+// Clear existing data for a fresh start (as requested)
+// db.prepare("DELETE FROM donors").run(); 
+// db.prepare("DELETE FROM users").run();
+
 console.log(`Database initialized at: ${dbPath}`);
 
 // টেবিল তৈরি যদি না থাকে

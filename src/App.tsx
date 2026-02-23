@@ -40,11 +40,10 @@ export default function App() {
       const response = await fetch('/api/donors');
       if (response.ok) {
         const data = await response.json();
-        setDonors(data.length > 0 ? data : MOCK_DONORS);
+        setDonors(data);
       }
     } catch (error) {
       console.error('Failed to fetch donors:', error);
-      setDonors(MOCK_DONORS);
     } finally {
       setIsLoading(false);
     }
