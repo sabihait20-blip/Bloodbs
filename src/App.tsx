@@ -15,17 +15,23 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch donors from API on mount
+  // সার্ভার থেকে ডাটা আনা
   const fetchDonors = async () => {
+    setIsLoading(true);
     try {
       const response = await fetch('/api/donors');
       if (response.ok) {
         const data = await response.json();
-        setDonors(data);
+        // যদি সার্ভারে কোনো ডাটা না থাকে তবে মক ডাটা দেখাবে
+        setDonors(data.length > 0 ? data : MOCK_DONORS);
       }
     } catch (error) {
       console.error('Failed to fetch donors:', error);
+      setDonors(MOCK_DONORS);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -44,7 +50,7 @@ export default function App() {
         fetchDonors();
       }
     } catch (error) {
-      console.error('Failed to add donor:', error);
+      alert('সার্ভারে তথ্য যোগ করতে সমস্যা হয়েছে।');
     }
   };
 
@@ -59,7 +65,7 @@ export default function App() {
         fetchDonors();
       }
     } catch (error) {
-      console.error('Failed to edit donor:', error);
+      alert('তথ্য পরিবর্তন করতে সমস্যা হয়েছে।');
     }
     setEditingDonor(null);
   };
@@ -74,7 +80,7 @@ export default function App() {
           fetchDonors();
         }
       } catch (error) {
-        console.error('Failed to delete donor:', error);
+        alert('তথ্য মুছতে সমস্যা হয়েছে।');
       }
     }
   };
