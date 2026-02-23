@@ -8,7 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ডাটাবেস ফাইল তৈরি (এটি সব তথ্য সেভ করে রাখবে)
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "donors.db");
+let dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "donors.db");
+if (!path.isAbsolute(dbPath)) {
+  dbPath = path.resolve(process.cwd(), dbPath);
+}
 const dbDir = path.dirname(dbPath);
 
 // Ensure directory exists
