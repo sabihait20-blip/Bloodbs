@@ -5,6 +5,7 @@ import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
 import { RequestModal } from './components/RequestModal';
+import { AdBanner } from './components/AdBanner';
 import { MOCK_DONORS } from './constants';
 import { BloodGroup, Donor, User } from './types';
 
@@ -173,7 +174,7 @@ export default function App() {
   }, [donors, selectedGroup, searchQuery]);
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 backdrop-blur-md bg-white/80">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -355,13 +356,6 @@ export default function App() {
               <Droplets size={20} />
               রক্তের অনুরোধ করুন
             </button>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="px-8 py-4 bg-white text-red-600 border-2 border-red-100 rounded-2xl font-bold hover:bg-red-50 transition-all active:scale-95 flex items-center gap-2"
-            >
-              <Plus size={20} />
-              দাতা হিসেবে যোগ দিন
-            </button>
           </motion.div>
         </div>
       </section>
@@ -491,6 +485,7 @@ export default function App() {
       </main>
 
       {/* Footer / Contact */}
+      <AdBanner />
       <footer className="mt-20 border-t border-slate-100 pt-12 pb-8 bg-slate-900 text-white">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-4">

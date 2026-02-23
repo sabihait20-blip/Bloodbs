@@ -30,6 +30,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError('ছবির সাইজ ২ মেগাবাইটের বেশি হওয়া যাবে না');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Initialize form if editing
   React.useEffect(() => {
     const savedUser = localStorage.getItem('blood_user');
@@ -309,15 +324,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                     <div className="space-y-1">
                       <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                         <Camera size={16} className="text-red-500" />
-                        প্রোফাইল ছবি (URL)
+                        প্রোফাইল ছবি
                       </label>
-                      <input
-                        type="url"
-                        placeholder="https://example.com/photo.jpg"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                        value={formData.image}
-                        onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                      />
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
+                          {formData.image ? (
+                            <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <Camera size={24} className="text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <label className="cursor-pointer inline-block px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold transition-colors">
+                            ছবি আপলোড করুন
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleImageChange}
+                            />
+                          </label>
+                          <p className="text-[10px] text-slate-400 mt-1">JPG, PNG (সর্বোচ্চ ২MB)</p>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
