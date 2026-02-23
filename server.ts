@@ -8,7 +8,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ডাটাবেস ফাইল তৈরি (এটি সব তথ্য সেভ করে রাখবে)
-const db = new Database("donors.db");
+const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "donors.db");
+const dbDir = path.dirname(dbPath);
+
+// Ensure directory exists
+import fs from 'fs';
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new Database(dbPath);
+
+console.log(`Database initialized at: ${dbPath}`);
 
 // টেবিল তৈরি যদি না থাকে
 db.exec(`
@@ -43,6 +54,15 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      env: process.env.NODE_ENV,
+      dbPath: dbPath
+    });
+  });
+
   // --- Auth API ---
   app.post("/api/auth/register", (req, res) => {
     const { 
@@ -51,6 +71,10 @@ async function startServer() {
       lastDonated, image, facebookUrl, whatsappNumber 
     } = req.body;
     
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Name, email and password are required" });
+    }
+
     const userId = Math.random().toString(36).substr(2, 9);
     const donorId = Math.random().toString(36).substr(2, 9);
     
@@ -82,19 +106,57 @@ async function startServer() {
 
       dbTransaction();
       res.status(201).json({ id: userId, name, email });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
-      res.status(400).json({ error: "Email already exists or invalid data" });
+      res.status(400).json({ error: error.message || "Email already exists or invalid data" });
     }
   });
 
   app.post("/api/auth/login", (req, res) => {
-    const { email, password } = req.body;
-    const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
-    if (user) {
-      res.json({ id: user.id, name: user.name, email: user.email });
-    } else {
-      res.status(401).json({ error: "Invalid credentials" });
+    try {
+      const { email, password } = req.body;
+      const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
+      if (user) {
+        res.json({ id: user.id, name: user.name, email: user.email });
+      } else {
+        res.status(401).json({ error: "ইমেইল বা পাসওয়ার্ড ভুল!" });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: "সার্ভারে সমস্যা হয়েছে" });
+    }
+  });
+
+  app.post("/api/auth/forgot-password", (req, res) => {
+    const { email, newPassword } = req.body;
+    try {
+      const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email) as any;
+      if (user) {
+        db.prepare("UPDATE users SET password = ? WHERE email = ?").run(newPassword, email);
+        res.json({ message: "পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে" });
+      } else {
+        res.status(404).json({ error: "এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে" });
+    }
+  });
+
+  app.put("/api/auth/profile", (req, res) => {
+    const { userId, name, email, password } = req.body;
+    try {
+      if (password) {
+        db.prepare("UPDATE users SET name = ?, email = ?, password = ? WHERE id = ?").run(name, email, password, userId);
+      } else {
+        db.prepare("UPDATE users SET name = ?, email = ? WHERE id = ?").run(name, email, userId);
+      }
+      
+      // Update donor name too
+      db.prepare("UPDATE donors SET name = ? WHERE userId = ?").run(name, userId);
+      
+      res.json({ id: userId, name, email });
+    } catch (error) {
+      res.status(500).json({ error: "প্রোফাইল আপডেট করতে সমস্যা হয়েছে" });
     }
   });
 

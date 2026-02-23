@@ -12,11 +12,12 @@ interface AuthModalProps {
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'edit'>('login');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
+    newPassword: '',
     bloodGroup: 'A+' as BloodGroup,
     location: '',
     phone: '',
@@ -26,23 +27,57 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     whatsappNumber: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Initialize form if editing
+  React.useEffect(() => {
+    const savedUser = localStorage.getItem('blood_user');
+    if (savedUser && mode === 'edit') {
+      const user = JSON.parse(savedUser);
+      setFormData(prev => ({ ...prev, name: user.name, email: user.email }));
+    }
+  }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setIsLoading(true);
 
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-    
-    // For registration, ensure we send all fields
-    const payload = isLogin 
-      ? { email: formData.email, password: formData.password }
-      : formData;
+    let endpoint = '';
+    let method = 'POST';
+    let payload: any = {};
 
+    switch (mode) {
+      case 'login':
+        endpoint = '/api/auth/login';
+        payload = { email: formData.email, password: formData.password };
+        break;
+      case 'register':
+        endpoint = '/api/auth/register';
+        payload = formData;
+        break;
+      case 'forgot':
+        endpoint = '/api/auth/forgot-password';
+        payload = { email: formData.email, newPassword: formData.newPassword };
+        break;
+      case 'edit':
+        endpoint = '/api/auth/profile';
+        method = 'PUT';
+        const savedUser = JSON.parse(localStorage.getItem('blood_user') || '{}');
+        payload = { 
+          userId: savedUser.id, 
+          name: formData.name, 
+          email: formData.email, 
+          password: formData.password || undefined 
+        };
+        break;
+    }
+    
     try {
       const response = await fetch(endpoint, {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -50,15 +85,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       const data = await response.json();
 
       if (response.ok) {
-        onAuthSuccess(data);
-        onClose();
+        if (mode === 'login' || mode === 'register' || mode === 'edit') {
+          onAuthSuccess(data);
+          if (mode === 'edit') setSuccess('প্রোফাইল আপডেট হয়েছে!');
+          else onClose();
+        } else if (mode === 'forgot') {
+          setSuccess('পাসওয়ার্ড রিসেট হয়েছে! এখন লগইন করুন।');
+          setMode('login');
+        }
       } else {
-        setError(data.error || 'Something went wrong');
+        const errorMsg = data.error || 'সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+        setError(errorMsg);
       }
     } catch (err) {
       setError('Connection failed');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const getTitle = () => {
+    switch (mode) {
+      case 'login': return 'লগইন করুন';
+      case 'register': return 'দাতা হিসেবে নিবন্ধন করুন';
+      case 'forgot': return 'পাসওয়ার্ড রিসেট';
+      case 'edit': return 'প্রোফাইল এডিট';
+    }
+  };
+
+  const getIcon = () => {
+    switch (mode) {
+      case 'login': return <LogIn size={24} />;
+      case 'register': return <UserPlus size={24} />;
+      case 'forgot': return <Lock size={24} />;
+      case 'edit': return <User size={24} />;
     }
   };
 
@@ -82,10 +142,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-red-600 text-white shrink-0">
               <div className="flex flex-col">
                 <h3 className="text-xl font-bold flex items-center gap-2">
-                  {isLogin ? <LogIn size={24} /> : <UserPlus size={24} />}
-                  {isLogin ? 'লগইন করুন' : 'দাতা হিসেবে নিবন্ধন করুন'}
+                  {getIcon()}
+                  {getTitle()}
                 </h3>
-                {!isLogin && <p className="text-xs text-red-100 mt-1">নিবন্ধন করলেই আপনার দাতা প্রোফাইল তৈরি হয়ে যাবে</p>}
+                {mode === 'register' && <p className="text-xs text-red-100 mt-1">নিবন্ধন করলেই আপনার দাতা প্রোফাইল তৈরি হয়ে যাবে</p>}
               </div>
               <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors">
                 <X size={20} />
@@ -98,10 +158,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   {error}
                 </div>
               )}
+              {success && (
+                <div className="p-3 bg-emerald-50 text-emerald-600 text-sm rounded-xl border border-emerald-100">
+                  {success}
+                </div>
+              )}
 
               {/* Basic Account Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {!isLogin && (
+                {(mode === 'register' || mode === 'edit') && (
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                       <User size={16} className="text-red-500" />
@@ -133,23 +198,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Lock size={16} className="text-red-500" />
-                    পাসওয়ার্ড
-                  </label>
-                  <input
-                    required
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  />
-                </div>
+                {mode !== 'forgot' && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <Lock size={16} className="text-red-500" />
+                      {mode === 'edit' ? 'নতুন পাসওয়ার্ড (ঐচ্ছিক)' : 'পাসওয়ার্ড'}
+                    </label>
+                    <input
+                      required={mode !== 'edit'}
+                      type="password"
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {mode === 'forgot' && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <Lock size={16} className="text-red-500" />
+                      নতুন পাসওয়ার্ড
+                    </label>
+                    <input
+                      required
+                      type="password"
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                      value={formData.newPassword}
+                      onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
 
-              {!isLogin && (
+              {mode === 'register' && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -273,19 +357,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   type="submit"
                   className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold text-lg shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  {isLoading ? 'প্রসেসিং হচ্ছে...' : (isLogin ? 'লগইন' : 'নিবন্ধন ও প্রোফাইল তৈরি')}
+                  {isLoading ? 'প্রসেসিং হচ্ছে...' : (
+                    mode === 'login' ? 'লগইন' : 
+                    mode === 'register' ? 'নিবন্ধন ও প্রোফাইল তৈরি' :
+                    mode === 'forgot' ? 'পাসওয়ার্ড পরিবর্তন করুন' : 'আপডেট করুন'
+                  )}
                 </button>
 
-                <p className="text-center text-slate-500 text-sm mt-4">
-                  {isLogin ? 'অ্যাকাউন্ট নেই?' : 'ইতিমধ্যে অ্যাকাউন্ট আছে?'}
-                  <button
-                    type="button"
-                    onClick={() => setIsLogin(!isLogin)}
-                    className="ml-2 text-red-600 font-bold hover:underline"
-                  >
-                    {isLogin ? 'নিবন্ধন করুন' : 'লগইন করুন'}
-                  </button>
-                </p>
+                <div className="flex flex-col gap-2 mt-4">
+                  <p className="text-center text-slate-500 text-sm">
+                    {mode === 'login' ? 'অ্যাকাউন্ট নেই?' : 'ইতিমধ্যে অ্যাকাউন্ট আছে?'}
+                    <button
+                      type="button"
+                      onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                      className="ml-2 text-red-600 font-bold hover:underline"
+                    >
+                      {mode === 'login' ? 'নিবন্ধন করুন' : 'লগইন করুন'}
+                    </button>
+                  </p>
+                  
+                  {mode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => setMode('forgot')}
+                      className="text-center text-slate-400 text-xs hover:text-red-500 transition-colors"
+                    >
+                      পাসওয়ার্ড ভুলে গেছেন?
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
           </motion.div>

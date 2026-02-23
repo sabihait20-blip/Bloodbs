@@ -149,10 +149,13 @@ export default function App() {
           <div className="flex items-center gap-2">
             {currentUser ? (
               <div className="flex items-center gap-2">
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-slate-700">
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-slate-700 hover:bg-slate-200 transition-colors"
+                >
                   <UserIcon size={16} className="text-red-500" />
                   <span className="text-sm font-medium">{currentUser.name}</span>
-                </div>
+                </button>
                 <button 
                   onClick={handleLogout}
                   className="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors"
