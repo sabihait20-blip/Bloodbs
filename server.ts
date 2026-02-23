@@ -55,6 +55,26 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS requests (
+    id TEXT PRIMARY KEY,
+    bloodGroup TEXT NOT NULL,
+    location TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS donations (
+    id TEXT PRIMARY KEY,
+    donorId TEXT NOT NULL,
+    donatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(donorId) REFERENCES donors(id)
+  )
+`);
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -68,6 +88,39 @@ async function startServer() {
       env: process.env.NODE_ENV,
       dbPath: dbPath
     });
+  });
+
+  // Stats API
+  app.get("/api/stats", (req, res) => {
+    try {
+      const totalDonors = db.prepare("SELECT COUNT(*) as count FROM donors").get() as any;
+      const donationsCompleted = db.prepare("SELECT COUNT(*) as count FROM donations").get() as any;
+      const urgentRequests = db.prepare("SELECT COUNT(*) as count FROM requests WHERE status = 'pending'").get() as any;
+      const activeDistricts = db.prepare("SELECT COUNT(DISTINCT location) as count FROM donors").get() as any;
+
+      res.json({
+        totalDonors: totalDonors.count,
+        donationsCompleted: donationsCompleted.count,
+        urgentRequests: urgentRequests.count,
+        activeDistricts: activeDistricts.count
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  app.post("/api/requests", (req, res) => {
+    const { bloodGroup, location, phone } = req.body;
+    if (!bloodGroup || !location || !phone) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+    const id = Math.random().toString(36).substr(2, 9);
+    try {
+      db.prepare("INSERT INTO requests (id, bloodGroup, location, phone) VALUES (?, ?, ?, ?)").run(id, bloodGroup, location, phone);
+      res.status(201).json({ id });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create request" });
+    }
   });
 
   // --- Auth API ---

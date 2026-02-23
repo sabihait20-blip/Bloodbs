@@ -4,6 +4,7 @@ import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldO
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
+import { RequestModal } from './components/RequestModal';
 import { MOCK_DONORS } from './constants';
 import { BloodGroup, Donor, User } from './types';
 
@@ -15,10 +16,17 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalDonors: 0,
+    donationsCompleted: 0,
+    urgentRequests: 0,
+    activeDistricts: 0
+  });
 
   const userDonorProfile = useMemo(() => {
     if (!currentUser) return null;
@@ -49,8 +57,37 @@ export default function App() {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const response = await fetch('/api/stats');
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  const handleAddRequest = async (request: { bloodGroup: BloodGroup; location: string; phone: string }) => {
+    try {
+      const response = await fetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      if (response.ok) {
+        fetchStats();
+        alert('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে।');
+      }
+    } catch (error) {
+      console.error('Failed to add request:', error);
+    }
+  };
+
   useEffect(() => {
     fetchDonors();
+    fetchStats();
   }, []);
 
   const handleAddDonor = async (newDonor: Donor) => {
@@ -104,6 +141,7 @@ export default function App() {
     setCurrentUser(user);
     localStorage.setItem('blood_user', JSON.stringify(user));
     fetchDonors(); // Refresh list to show new donor profile
+    fetchStats(); // Refresh stats
   };
 
   const handleLogout = () => {
@@ -264,6 +302,12 @@ export default function App() {
         </section>
       )}
 
+      <RequestModal 
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onSubmit={handleAddRequest}
+      />
+
       <AddDonorModal 
         isOpen={isModalOpen || !!editingDonor} 
         onClose={() => {
@@ -297,6 +341,28 @@ export default function App() {
           >
             আপনার রক্তদান হতে পারে কারো বেঁচে থাকার শেষ আশা। আজই রক্তদাতা খুঁজুন অথবা নিজে রক্তদাতা হিসেবে নিবন্ধিত হোন।
           </motion.p>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-8 flex flex-wrap justify-center gap-4"
+          >
+            <button 
+              onClick={() => setIsRequestModalOpen(true)}
+              className="px-8 py-4 bg-orange-600 text-white rounded-2xl font-bold shadow-xl shadow-orange-200 hover:bg-orange-700 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <Droplets size={20} />
+              রক্তের অনুরোধ করুন
+            </button>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="px-8 py-4 bg-white text-red-600 border-2 border-red-100 rounded-2xl font-bold hover:bg-red-50 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <Plus size={20} />
+              দাতা হিসেবে যোগ দিন
+            </button>
+          </motion.div>
         </div>
       </section>
 
@@ -352,10 +418,10 @@ export default function App() {
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'মোট দাতা', value: '১২৫০+', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'রক্তদান সম্পন্ন', value: '৪৫০০+', icon: Heart, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'জরুরি অনুরোধ', value: '১২', icon: Droplets, color: 'text-orange-600', bg: 'bg-orange-50' },
-            { label: 'সক্রিয় এলাকা', value: '৬৪ জেলা', icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'মোট দাতা', value: `${stats.totalDonors}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'রক্তদান সম্পন্ন', value: `${stats.donationsCompleted}`, icon: Heart, color: 'text-red-600', bg: 'bg-red-50' },
+            { label: 'জরুরি অনুরোধ', value: `${stats.urgentRequests}`, icon: Droplets, color: 'text-orange-600', bg: 'bg-orange-50' },
+            { label: 'সক্রিয় এলাকা', value: `${stats.activeDistricts} জেলা`, icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           ].map((stat, i) => (
             <motion.div
               key={i}
