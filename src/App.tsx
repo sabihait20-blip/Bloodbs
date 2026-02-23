@@ -104,6 +104,7 @@ export default function App() {
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('blood_user', JSON.stringify(user));
+    fetchDonors(); // Refresh list to show new donor profile
   };
 
   const handleLogout = () => {
