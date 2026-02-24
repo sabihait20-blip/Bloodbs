@@ -100,7 +100,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: 'accepted' | 'rejected') => {
+  const handleUpdateStatus = async (id: string, status: 'accepted' | 'rejected', phone?: string) => {
     try {
       const response = await fetch(`/api/requests/${id}`, {
         method: 'PUT',
@@ -112,6 +112,9 @@ export default function App() {
         fetchStats();
         if (status === 'accepted') {
           fetchAcceptedRequests();
+          if (phone) {
+            window.location.href = `tel:${phone}`;
+          }
         }
       }
     } catch (error) {
@@ -286,7 +289,7 @@ export default function App() {
                   
                   <div className="flex gap-2 mt-3">
                     <button
-                      onClick={() => handleUpdateStatus(notif.id, 'accepted')}
+                      onClick={() => handleUpdateStatus(notif.id, 'accepted', notif.phone)}
                       className="flex-1 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-1"
                     >
                       <Check size={14} /> গ্রহণ করুন
@@ -403,7 +406,7 @@ export default function App() {
                   আপনার রক্তদান ড্যাশবোর্ডে আপনাকে স্বাগতম। এখান থেকে আপনি আপনার তথ্য আপডেট করতে পারেন এবং আপনার রক্তদানের ইতিহাস দেখতে পারেন।
                 </p>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl">
                     <p className="text-red-100 text-xs mb-1">মোট রক্তদান</p>
                     <p className="text-2xl font-bold">{userDonorProfile?.donationCount || 0} বার</p>
@@ -412,7 +415,11 @@ export default function App() {
                     <p className="text-red-100 text-xs mb-1">পরবর্তী রক্তদান</p>
                     <p className="text-2xl font-bold">এখনই সম্ভব</p>
                   </div>
-                  <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl col-span-2 sm:col-span-1">
+                  <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl">
+                    <p className="text-red-100 text-xs mb-1">গৃহীত অনুরোধ</p>
+                    <p className="text-2xl font-bold">{acceptedRequests.length} টি</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl">
                     <p className="text-red-100 text-xs mb-1">পয়েন্টস</p>
                     <p className="text-2xl font-bold">{(userDonorProfile?.donationCount || 0) * 50 + 50}</p>
                   </div>

@@ -192,7 +192,7 @@ async function startServer() {
       const dbTransaction = db.transaction(() => {
         // Create User
         const userStmt = db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)");
-        userStmt.run(userId, name, email, password);
+        userStmt.run(userId, name, email.toLowerCase(), password);
 
         // Create Donor Profile
         const donorStmt = db.prepare(`
@@ -225,7 +225,7 @@ async function startServer() {
   app.post("/api/auth/login", (req, res) => {
     try {
       const { email, password } = req.body;
-      const user = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
+      const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ? AND password = ?").get(email.toLowerCase(), password) as any;
       if (user) {
         res.json({ id: user.id, name: user.name, email: user.email });
       } else {
