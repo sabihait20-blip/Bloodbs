@@ -3,6 +3,8 @@ import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
+import { WebSocketServer, WebSocket } from "ws";
+import { createServer } from "http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +60,7 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS requests (
     id TEXT PRIMARY KEY,
+    requesterName TEXT NOT NULL,
     bloodGroup TEXT NOT NULL,
     location TEXT NOT NULL,
     phone TEXT NOT NULL,
@@ -77,7 +80,18 @@ db.exec(`
 
 async function startServer() {
   const app = express();
+  const httpServer = createServer(app);
+  const wss = new WebSocketServer({ server: httpServer });
   const PORT = Number(process.env.PORT) || 3000;
+
+  // WebSocket broadcast helper
+  const broadcast = (data: any) => {
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(data));
+      }
+    });
+  };
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -110,16 +124,51 @@ async function startServer() {
   });
 
   app.post("/api/requests", (req, res) => {
-    const { bloodGroup, location, phone } = req.body;
-    if (!bloodGroup || !location || !phone) {
+    const { requesterName, bloodGroup, location, phone } = req.body;
+    if (!requesterName || !bloodGroup || !location || !phone) {
       return res.status(400).json({ error: "All fields are required" });
     }
     const id = Math.random().toString(36).substr(2, 9);
     try {
-      db.prepare("INSERT INTO requests (id, bloodGroup, location, phone) VALUES (?, ?, ?, ?)").run(id, bloodGroup, location, phone);
-      res.status(201).json({ id });
+      db.prepare("INSERT INTO requests (id, requesterName, bloodGroup, location, phone) VALUES (?, ?, ?, ?, ?)").run(id, requesterName, bloodGroup, location, phone);
+      
+      const newRequest = { id, requesterName, bloodGroup, location, phone, status: 'pending' };
+      broadcast({ type: 'NEW_REQUEST', payload: newRequest });
+      
+      res.status(201).json(newRequest);
     } catch (error) {
       res.status(500).json({ error: "Failed to create request" });
+    }
+  });
+
+  app.get("/api/requests", (req, res) => {
+    try {
+      const requests = db.prepare("SELECT * FROM requests WHERE status = 'accepted' ORDER BY createdAt DESC").all();
+      res.json(requests);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch requests" });
+    }
+  });
+
+  app.put("/api/requests/:id", (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    try {
+      db.prepare("UPDATE requests SET status = ? WHERE id = ?").run(status, id);
+      
+      if (status === 'accepted') {
+        const request = db.prepare("SELECT * FROM requests WHERE id = ?").get() as any;
+        broadcast({ type: 'REQUEST_ACCEPTED', payload: request });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update request" });
     }
   });
 
@@ -301,7 +350,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

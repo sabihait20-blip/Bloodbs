@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
 import { RequestModal } from './components/RequestModal';
 import { AdBanner } from './components/AdBanner';
 import { MOCK_DONORS } from './constants';
-import { BloodGroup, Donor, User } from './types';
+import { BloodGroup, Donor, User, Request } from './types';
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -22,6 +22,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<Request[]>([]);
+  const [acceptedRequests, setAcceptedRequests] = useState<Request[]>([]);
   const [stats, setStats] = useState({
     totalDonors: 0,
     donationsCompleted: 0,
@@ -70,7 +72,19 @@ export default function App() {
     }
   };
 
-  const handleAddRequest = async (request: { bloodGroup: BloodGroup; location: string; phone: string }) => {
+  const fetchAcceptedRequests = async () => {
+    try {
+      const response = await fetch('/api/requests');
+      if (response.ok) {
+        const data = await response.json();
+        setAcceptedRequests(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch requests:', error);
+    }
+  };
+
+  const handleAddRequest = async (request: { requesterName: string; bloodGroup: BloodGroup; location: string; phone: string }) => {
     try {
       const response = await fetch('/api/requests', {
         method: 'POST',
@@ -79,16 +93,52 @@ export default function App() {
       });
       if (response.ok) {
         fetchStats();
-        alert('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে।');
+        alert('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে। এটি অনুমোদনের জন্য অপেক্ষমান।');
       }
     } catch (error) {
       console.error('Failed to add request:', error);
     }
   };
 
+  const handleUpdateStatus = async (id: string, status: 'accepted' | 'rejected') => {
+    try {
+      const response = await fetch(`/api/requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+        fetchStats();
+        if (status === 'accepted') {
+          fetchAcceptedRequests();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
+  };
+
   useEffect(() => {
     fetchDonors();
     fetchStats();
+    fetchAcceptedRequests();
+
+    // WebSocket setup
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}`);
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'NEW_REQUEST') {
+        setNotifications(prev => [data.payload, ...prev]);
+      } else if (data.type === 'REQUEST_ACCEPTED') {
+        fetchAcceptedRequests();
+        fetchStats();
+      }
+    };
+
+    return () => socket.close();
   }, []);
 
   const handleAddDonor = async (newDonor: Donor) => {
@@ -173,8 +223,65 @@ export default function App() {
     });
   }, [donors, selectedGroup, searchQuery]);
 
+  const filteredRequests = useMemo(() => {
+    return acceptedRequests.filter(req => {
+      const matchesGroup = selectedGroup === 'All' || req.bloodGroup === selectedGroup;
+      const matchesSearch = req.requesterName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           req.location.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesGroup && matchesSearch;
+    });
+  }, [acceptedRequests, selectedGroup, searchQuery]);
+
   return (
     <div className="min-h-screen">
+      {/* Notifications Overlay */}
+      <div className="fixed top-20 right-4 z-[100] flex flex-col gap-4 pointer-events-none">
+        <AnimatePresence>
+          {notifications.map((notif) => (
+            <motion.div
+              key={notif.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 50, scale: 0.9 }}
+              className="pointer-events-auto bg-white rounded-2xl shadow-2xl border border-red-100 p-4 w-80 overflow-hidden relative"
+            >
+              <div className="absolute top-0 left-0 w-1 h-full bg-red-600" />
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-600 shrink-0">
+                  <Bell size={20} className="animate-bounce" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-slate-900 text-sm">জরুরি রক্তের অনুরোধ!</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    <span className="font-bold text-red-600">{notif.bloodGroup}</span> রক্তের প্রয়োজন
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                    <MapPin size={10} /> {notif.location}
+                  </p>
+                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <UserIcon size={10} /> {notif.requesterName}
+                  </p>
+                  
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleUpdateStatus(notif.id, 'accepted')}
+                      className="flex-1 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Check size={14} /> গ্রহণ করুন
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus(notif.id, 'rejected')}
+                      className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
       {/* Header */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50 backdrop-blur-md bg-white/80">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -439,6 +546,69 @@ export default function App() {
           ))}
         </div>
       </section>
+
+      {/* Urgent Blood Requests */}
+      {filteredRequests.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <Droplets className="text-red-600 animate-pulse" />
+              জরুরি রক্তের অনুরোধ
+              <span className="text-sm font-normal text-slate-500 bg-red-50 text-red-600 px-2 py-0.5 rounded-full">
+                {filteredRequests.length} টি সক্রিয়
+              </span>
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence mode='popLayout'>
+              {filteredRequests.map((req) => (
+                <motion.div
+                  key={req.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="bg-white rounded-[2rem] p-6 border-2 border-red-50 shadow-xl shadow-red-100/50 relative overflow-hidden group"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500" />
+                  
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="w-14 h-14 bg-red-600 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-red-200">
+                        {req.bloodGroup}
+                      </div>
+                      <div className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                        Urgent
+                      </div>
+                    </div>
+
+                    <h4 className="text-xl font-bold text-slate-900 mb-1">{req.requesterName}</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-slate-500 text-sm">
+                        <MapPin size={16} className="text-red-400" />
+                        {req.location}
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-500 text-sm">
+                        <Phone size={16} className="text-red-400" />
+                        {req.phone}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 flex gap-3">
+                      <a
+                        href={`tel:${req.phone}`}
+                        className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-700 transition-colors shadow-lg shadow-red-100"
+                      >
+                        <Phone size={16} /> কল করুন
+                      </a>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </section>
+      )}
 
       {/* Donor List */}
       <main className="max-w-7xl mx-auto px-4">

@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Droplets, MapPin, Phone } from 'lucide-react';
+import { X, Droplets, MapPin, Phone, User } from 'lucide-react';
 import { BloodGroup } from '../types';
 
 interface RequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (request: { bloodGroup: BloodGroup; location: string; phone: string }) => void;
+  onSubmit: (request: { requesterName: string; bloodGroup: BloodGroup; location: string; phone: string }) => void;
 }
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export function RequestModal({ isOpen, onClose, onSubmit }: RequestModalProps) {
   const [formData, setFormData] = useState({
+    requesterName: '',
     bloodGroup: 'A+' as BloodGroup,
     location: '',
     phone: '',
@@ -53,6 +54,20 @@ export function RequestModal({ isOpen, onClose, onSubmit }: RequestModalProps) {
               onSubmit(formData);
               onClose();
             }} className="space-y-6">
+              <div className="space-y-4">
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input
+                    type="text"
+                    required
+                    placeholder="আপনার নাম"
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 transition-all outline-none"
+                    value={formData.requesterName}
+                    onChange={(e) => setFormData({ ...formData, requesterName: e.target.value })}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">রক্তের গ্রুপ</label>
                 <div className="grid grid-cols-4 gap-2">

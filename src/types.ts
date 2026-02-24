@@ -6,6 +6,16 @@ export interface User {
   email: string;
 }
 
+export interface Request {
+  id: string;
+  requesterName: string;
+  bloodGroup: BloodGroup;
+  location: string;
+  phone: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+}
+
 export interface Donor {
   id: string;
   name: string;
