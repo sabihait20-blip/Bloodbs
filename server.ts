@@ -52,6 +52,7 @@ db.exec(`
     available INTEGER NOT NULL,
     facebookUrl TEXT,
     whatsappNumber TEXT,
+    donationCount INTEGER DEFAULT 0,
     userId TEXT,
     FOREIGN KEY(userId) REFERENCES users(id)
   )
@@ -275,11 +276,31 @@ async function startServer() {
     res.json(donors.map(d => ({ ...d, available: Boolean(d.available) })));
   });
 
+  app.post("/api/donors/log-donation", (req, res) => {
+    const { donorId } = req.body;
+    if (!donorId) return res.status(400).json({ error: "Donor ID is required" });
+
+    try {
+      const today = new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
+      db.prepare("UPDATE donors SET donationCount = donationCount + 1, lastDonated = ? WHERE id = ?").run(today, donorId);
+      
+      const updatedDonor = db.prepare("SELECT * FROM donors WHERE id = ?").get() as any;
+      
+      // Also log in donations table
+      const donationId = Math.random().toString(36).substr(2, 9);
+      db.prepare("INSERT INTO donations (id, donorId, donatedAt) VALUES (?, ?, CURRENT_TIMESTAMP)").run(donationId, donorId);
+
+      res.json({ ...updatedDonor, available: Boolean(updatedDonor.available) });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to log donation" });
+    }
+  });
+
   app.post("/api/donors", (req, res) => {
     const donor = req.body;
     const stmt = db.prepare(`
-      INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, facebookUrl, whatsappNumber, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, facebookUrl, whatsappNumber, donationCount, userId)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       donor.id,
@@ -292,6 +313,7 @@ async function startServer() {
       donor.available ? 1 : 0,
       donor.facebookUrl || null,
       donor.whatsappNumber || null,
+      donor.donationCount || 0,
       donor.userId || null
     );
     res.status(201).json(donor);
@@ -311,7 +333,7 @@ async function startServer() {
 
     const stmt = db.prepare(`
       UPDATE donors 
-      SET name = ?, bloodGroup = ?, location = ?, phone = ?, lastDonated = ?, image = ?, available = ?, facebookUrl = ?, whatsappNumber = ?
+      SET name = ?, bloodGroup = ?, location = ?, phone = ?, lastDonated = ?, image = ?, available = ?, facebookUrl = ?, whatsappNumber = ?, donationCount = ?
       WHERE id = ?
     `);
     stmt.run(
@@ -324,6 +346,7 @@ async function startServer() {
       donor.available ? 1 : 0,
       donor.facebookUrl || null,
       donor.whatsappNumber || null,
+      donor.donationCount || 0,
       id
     );
     res.json(donor);

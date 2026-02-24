@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Phone, MapPin, Calendar, Droplets, Facebook, MessageCircle, Edit2, Trash2 } from 'lucide-react';
+import { Phone, MapPin, Calendar, Droplets, Facebook, MessageCircle, Edit2, Trash2, Heart } from 'lucide-react';
 import { Donor } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -135,6 +135,14 @@ export const DonorCard: React.FC<{
 
         {/* Card Details (Visiting Card Style) */}
         <div className="mt-6 space-y-3 border-t border-slate-50 pt-4">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-slate-600">
+              <Heart size={16} className="text-red-500" />
+              <span>মোট রক্তদান:</span>
+            </div>
+            <span className="font-bold text-red-600">{donor.donationCount || 0} বার</span>
+          </div>
+
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2 text-slate-600">
               <Calendar size={16} className="text-red-500" />

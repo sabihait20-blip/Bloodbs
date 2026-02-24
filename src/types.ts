@@ -25,6 +25,7 @@ export interface Donor {
   lastDonated: string;
   image: string;
   available: boolean;
+  donationCount?: number;
   facebookUrl?: string;
   whatsappNumber?: string;
   userId?: string;

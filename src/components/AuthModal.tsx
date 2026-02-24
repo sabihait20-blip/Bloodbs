@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, LogIn, UserPlus, Droplets, MapPin, Phone, Calendar, Facebook, MessageCircle, Camera } from 'lucide-react';
+import { X, Mail, Lock, User, LogIn, UserPlus, Droplets, MapPin, Phone, Calendar, Facebook, MessageCircle, Camera, Heart } from 'lucide-react';
 import { User as UserType, BloodGroup } from '../types';
 
 interface AuthModalProps {
@@ -25,6 +25,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     image: '',
     facebookUrl: '',
     whatsappNumber: '',
+    donationCount: 0,
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -50,7 +51,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     const savedUser = localStorage.getItem('blood_user');
     if (savedUser && mode === 'edit') {
       const user = JSON.parse(savedUser);
-      setFormData(prev => ({ ...prev, name: user.name, email: user.email }));
+      setFormData(prev => ({ 
+        ...prev, 
+        name: user.name, 
+        email: user.email,
+        donationCount: user.donationCount || 0
+      }));
     }
   }, [mode]);
 
@@ -85,7 +91,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           userId: savedUser.id, 
           name: formData.name, 
           email: formData.email, 
-          password: formData.password || undefined 
+          password: formData.password || undefined,
+          donationCount: formData.donationCount
         };
         break;
     }
@@ -360,6 +367,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                         value={formData.whatsappNumber}
                         onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <Heart size={16} className="text-red-500" />
+                        রক্তদানের সংখ্যা
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="০"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        value={formData.donationCount}
+                        onChange={(e) => setFormData({ ...formData, donationCount: parseInt(e.target.value) || 0 })}
                       />
                     </div>
 

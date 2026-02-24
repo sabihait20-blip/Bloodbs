@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, MapPin, Phone, Droplets, Calendar, Camera } from 'lucide-react';
+import { X, User, MapPin, Phone, Droplets, Calendar, Camera, Heart } from 'lucide-react';
 import { BloodGroup, Donor } from '../types';
 
 interface AddDonorModalProps {
@@ -23,6 +23,7 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
     image: '',
     facebookUrl: '',
     whatsappNumber: '',
+    donationCount: 0,
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,6 +52,7 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
         image: editDonor.image || '',
         facebookUrl: editDonor.facebookUrl || '',
         whatsappNumber: editDonor.whatsappNumber || '',
+        donationCount: editDonor.donationCount || 0,
       });
     } else {
       setFormData({
@@ -62,6 +64,7 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
         image: '',
         facebookUrl: '',
         whatsappNumber: '',
+        donationCount: 0,
       });
     }
   }, [editDonor, isOpen]);
@@ -245,20 +248,35 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
                   />
                 </div>
 
-                {/* WhatsApp Number */}
+                {/* Donation Count */}
                 <div className="space-y-1">
                   <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <span className="text-green-600 font-bold">W</span>
-                    হোয়াটসঅ্যাপ (ঐচ্ছিক)
+                    <Heart size={16} className="text-red-500" />
+                    রক্তদানের সংখ্যা
                   </label>
                   <input
-                    type="tel"
-                    placeholder="017XXXXXXXX"
+                    type="number"
+                    min="0"
+                    placeholder="০"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                    value={formData.whatsappNumber}
-                    onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                    value={formData.donationCount}
+                    onChange={(e) => setFormData({ ...formData, donationCount: parseInt(e.target.value) || 0 })}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <span className="text-green-600 font-bold">W</span>
+                  হোয়াটসঅ্যাপ (ঐচ্ছিক)
+                </label>
+                <input
+                  type="tel"
+                  placeholder="017XXXXXXXX"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                  value={formData.whatsappNumber}
+                  onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                />
               </div>
 
               <button

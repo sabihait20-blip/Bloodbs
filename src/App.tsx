@@ -119,6 +119,28 @@ export default function App() {
     }
   };
 
+  const handleLogDonation = async () => {
+    if (!userDonorProfile) {
+      alert('অনুগ্রহ করে আগে দাতা হিসেবে নিবন্ধন করুন।');
+      return;
+    }
+    try {
+      const response = await fetch('/api/donors/log-donation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ donorId: userDonorProfile.id }),
+      });
+      if (response.ok) {
+        const updatedDonor = await response.json();
+        setDonors(prev => prev.map(d => d.id === updatedDonor.id ? updatedDonor : d));
+        fetchStats();
+        alert('অভিনন্দন! আপনার রক্তদান সফলভাবে রেকর্ড করা হয়েছে।');
+      }
+    } catch (error) {
+      console.error('Failed to log donation:', error);
+    }
+  };
+
   useEffect(() => {
     fetchDonors();
     fetchStats();
@@ -384,7 +406,7 @@ export default function App() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl">
                     <p className="text-red-100 text-xs mb-1">মোট রক্তদান</p>
-                    <p className="text-2xl font-bold">০ বার</p>
+                    <p className="text-2xl font-bold">{userDonorProfile?.donationCount || 0} বার</p>
                   </div>
                   <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl">
                     <p className="text-red-100 text-xs mb-1">পরবর্তী রক্তদান</p>
@@ -392,16 +414,23 @@ export default function App() {
                   </div>
                   <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl col-span-2 sm:col-span-1">
                     <p className="text-red-100 text-xs mb-1">পয়েন্টস</p>
-                    <p className="text-2xl font-bold">৫০</p>
+                    <p className="text-2xl font-bold">{(userDonorProfile?.donationCount || 0) * 50 + 50}</p>
                   </div>
                 </div>
 
-                <div className="mt-8 flex items-center gap-4">
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <button 
+                    onClick={handleLogDonation}
+                    className="px-6 py-3 bg-white text-red-600 rounded-2xl font-bold shadow-xl hover:bg-red-50 transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    <Heart size={18} className="fill-current" />
+                    রক্তদান সম্পন্ন করেছি
+                  </button>
                   <div className="px-4 py-2 bg-white/20 rounded-full text-sm font-medium border border-white/30">
-                    রক্তের গ্রুপ: <span className="font-bold">{userDonorProfile?.bloodGroup || 'N/A'}</span>
+                    রক্তের গ্রুপ: <span className="font-bold">{userDonorProfile?.bloodGroup || 'নির্ধারিত নয়'}</span>
                   </div>
                   <div className="px-4 py-2 bg-white/20 rounded-full text-sm font-medium border border-white/30">
-                    অবস্থান: <span className="font-bold">{userDonorProfile?.location || 'N/A'}</span>
+                    অবস্থান: <span className="font-bold">{userDonorProfile?.location || 'নির্ধারিত নয়'}</span>
                   </div>
                 </div>
               </div>
