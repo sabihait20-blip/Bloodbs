@@ -225,6 +225,11 @@ async function startServer() {
   app.post("/api/auth/google-register", (req, res) => {
     console.log('Google register request:', req.body);
     const { uid, name, email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
     try {
       const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase()) as any;
       if (user) {
@@ -233,19 +238,19 @@ async function startServer() {
         const donorId = Math.random().toString(36).substr(2, 9);
         const dbTransaction = db.transaction(() => {
           const userStmt = db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)");
-          userStmt.run(uid, name, email.toLowerCase(), "google-auth");
+          userStmt.run(uid, name || "Google User", email.toLowerCase(), "google-auth");
           const donorStmt = db.prepare(`
             INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, userId)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          donorStmt.run(donorId, name, 'A+', 'নির্ধারিত নয়', '01xxxxxxxxx', 'কখনো না', `https://picsum.photos/seed/${uid}/400/400`, 1, uid);
+          donorStmt.run(donorId, name || "Google User", 'A+', 'নির্ধারিত নয়', '01xxxxxxxxx', 'কখনো না', `https://picsum.photos/seed/${uid}/400/400`, 1, uid);
         });
         dbTransaction();
-        res.status(201).json({ id: uid, name, email });
+        res.status(201).json({ id: uid, name: name || "Google User", email: email.toLowerCase() });
       }
     } catch (error: any) {
       console.error('Google registration error:', error);
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: error.message || "Database error" });
     }
   });
 
