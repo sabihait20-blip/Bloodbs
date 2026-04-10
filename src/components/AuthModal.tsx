@@ -438,7 +438,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                           onAuthSuccess(data);
                           onClose();
                         } else {
-                          setError('Google registration failed');
+                          const errorData = await response.json();
+                          console.error('Google registration error:', errorData);
+                          setError(`Google registration failed: ${errorData.error || 'Unknown error'}`);
                         }
                       } catch (error) {
                         setError('Google login failed');
