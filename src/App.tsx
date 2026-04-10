@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
@@ -6,8 +6,10 @@ import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
 import { RequestModal } from './components/RequestModal';
 import { AdBanner } from './components/AdBanner';
-import { MOCK_DONORS } from './constants';
 import { BloodGroup, Donor, User, Request } from './types';
+import { db, auth } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc, getDocs, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -24,13 +26,6 @@ export default function App() {
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    if (currentUser?.email === 'sabihait20@gmail.com') {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
-  }, [currentUser]);
   const [notifications, setNotifications] = useState<Request[]>([]);
   const [acceptedRequests, setAcceptedRequests] = useState<Request[]>([]);
   const [stats, setStats] = useState({
@@ -45,65 +40,73 @@ export default function App() {
     return donors.find(d => d.userId === currentUser.id);
   }, [currentUser, donors]);
 
-  // Load user from localStorage on mount
+  // Auth Listener
   useEffect(() => {
-    const savedUser = localStorage.getItem('blood_user');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          setCurrentUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
+        } else {
+          setCurrentUser({ id: firebaseUser.uid, name: firebaseUser.displayName || 'User', email: firebaseUser.email || '' });
+        }
+      } else {
+        setCurrentUser(null);
+        setIsAdmin(false);
+      }
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Fetch donors from API on mount
-  const fetchDonors = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/donors');
-      if (response.ok) {
-        const data = await response.json();
-        setDonors(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch donors:', error);
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (currentUser?.email === 'sabihait20@gmail.com') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
     }
-  };
+  }, [currentUser]);
 
-  const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch stats:', error);
-    }
-  };
+  // Firestore Listeners
+  useEffect(() => {
+    const donorsUnsubscribe = onSnapshot(collection(db, 'donors'), (snapshot) => {
+      const donorsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Donor));
+      setDonors(donorsList);
+      
+      const uniqueDistricts = new Set(donorsList.map(d => d.location)).size;
+      const totalDonations = donorsList.reduce((acc, curr) => acc + (curr.donationCount || 0), 0);
+      setStats(prev => ({
+        ...prev,
+        totalDonors: donorsList.length,
+        donationsCompleted: totalDonations,
+        activeDistricts: uniqueDistricts
+      }));
+    });
 
-  const fetchAcceptedRequests = async () => {
-    try {
-      const response = await fetch('/api/requests');
-      if (response.ok) {
-        const data = await response.json();
-        setAcceptedRequests(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch requests:', error);
-    }
-  };
+    const requestsUnsubscribe = onSnapshot(collection(db, 'requests'), (snapshot) => {
+      const allRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Request));
+      setNotifications(allRequests.filter(r => r.status === 'pending'));
+      setAcceptedRequests(allRequests.filter(r => r.status === 'accepted'));
+      setStats(prev => ({
+        ...prev,
+        urgentRequests: allRequests.filter(r => r.status === 'pending').length
+      }));
+    });
+
+    return () => {
+      donorsUnsubscribe();
+      requestsUnsubscribe();
+    };
+  }, []);
 
   const handleAddRequest = async (request: { requesterName: string; bloodGroup: BloodGroup; location: string; phone: string }) => {
     try {
-      const response = await fetch('/api/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+      await addDoc(collection(db, 'requests'), {
+        ...request,
+        status: 'pending',
+        createdAt: serverTimestamp()
       });
-      if (response.ok) {
-        fetchStats();
-        alert('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে। এটি অনুমোদনের জন্য অপেক্ষমান।');
-      }
+      alert('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে। এটি অনুমোদনের জন্য অপেক্ষমান।');
     } catch (error) {
       console.error('Failed to add request:', error);
     }
@@ -111,20 +114,9 @@ export default function App() {
 
   const handleUpdateStatus = async (id: string, status: 'accepted' | 'rejected', phone?: string) => {
     try {
-      const response = await fetch(`/api/requests/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (response.ok) {
-        setNotifications(prev => prev.filter(n => n.id !== id));
-        fetchStats();
-        if (status === 'accepted') {
-          fetchAcceptedRequests();
-          if (phone) {
-            window.location.href = `tel:${phone}`;
-          }
-        }
+      await updateDoc(doc(db, 'requests', id), { status });
+      if (status === 'accepted' && phone) {
+        window.location.href = `tel:${phone}`;
       }
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -137,114 +129,56 @@ export default function App() {
       return;
     }
     try {
-      const response = await fetch('/api/donors/log-donation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ donorId: userDonorProfile.id }),
+      const donorRef = doc(db, 'donors', userDonorProfile.id);
+      await updateDoc(donorRef, {
+        donationCount: (userDonorProfile.donationCount || 0) + 1,
+        lastDonated: new Date().toLocaleDateString('bn-BD')
       });
-      if (response.ok) {
-        const updatedDonor = await response.json();
-        setDonors(prev => prev.map(d => d.id === updatedDonor.id ? updatedDonor : d));
-        fetchStats();
-        alert('অভিনন্দন! আপনার রক্তদান সফলভাবে রেকর্ড করা হয়েছে।');
-      }
+      alert('অভিনন্দন! আপনার রক্তদান সফলভাবে রেকর্ড করা হয়েছে।');
     } catch (error) {
       console.error('Failed to log donation:', error);
     }
   };
 
-  useEffect(() => {
-    fetchDonors();
-    fetchStats();
-    fetchAcceptedRequests();
-
-    // WebSocket setup
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}`);
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'NEW_REQUEST') {
-        setNotifications(prev => [data.payload, ...prev]);
-      } else if (data.type === 'REQUEST_ACCEPTED') {
-        fetchAcceptedRequests();
-        fetchStats();
-      }
-    };
-
-    return () => socket.close();
-  }, []);
-
-  const handleAddDonor = async (newDonor: Donor) => {
+  const handleAddDonor = async (donorData: Omit<Donor, 'id'>) => {
     try {
-      const donorWithUser = { ...newDonor, userId: currentUser?.id };
-      const response = await fetch('/api/donors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(donorWithUser),
-      });
-      if (response.ok) {
-        fetchDonors();
+      if (editingDonor) {
+        await updateDoc(doc(db, 'donors', editingDonor.id), donorData);
+        setEditingDonor(null);
+      } else {
+        await addDoc(collection(db, 'donors'), {
+          ...donorData,
+          userId: currentUser?.id
+        });
       }
+      setIsModalOpen(false);
     } catch (error) {
-      alert('সার্ভারে তথ্য যোগ করতে সমস্যা হয়েছে।');
+      console.error('Failed to save donor:', error);
     }
-  };
-
-  const handleEditDonor = async (updatedDonor: Donor) => {
-    try {
-      const response = await fetch(`/api/donors/${updatedDonor.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedDonor),
-      });
-      if (response.ok) {
-        fetchDonors();
-      }
-    } catch (error) {
-      alert('তথ্য পরিবর্তন করতে সমস্যা হয়েছে।');
-    }
-    setEditingDonor(null);
   };
 
   const handleDeleteDonor = async (id: string) => {
-    if (window.confirm('আপনি কি নিশ্চিত যে আপনি এই দাতার তথ্য মুছে ফেলতে চান?')) {
+    if (window.confirm('আপনি কি নিশ্চিতভাবে এই দাতা প্রোফাইলটি ডিলিট করতে চান?')) {
       try {
-        const response = await fetch(`/api/donors/${id}`, {
-          method: 'DELETE',
-        });
-        if (response.ok) {
-          fetchDonors();
-        }
+        await deleteDoc(doc(db, 'donors', id));
       } catch (error) {
-        alert('তথ্য মুছতে সমস্যা হয়েছে।');
+        console.error('Failed to delete donor:', error);
       }
     }
   };
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
-    localStorage.setItem('blood_user', JSON.stringify(user));
-    fetchDonors(); // Refresh list to show new donor profile
-    fetchStats(); // Refresh stats
+    setIsAuthModalOpen(false);
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setIsAdmin(false);
-    localStorage.removeItem('blood_user');
-  };
-
-  const toggleAdmin = () => {
-    if (!isAdmin) {
-      const pass = window.prompt('অ্যাডমিন পাসওয়ার্ড দিন (ডিফল্ট: admin):');
-      if (pass === 'admin') {
-        setIsAdmin(true);
-      } else {
-        alert('ভুল পাসওয়ার্ড!');
-      }
-    } else {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setCurrentUser(null);
       setIsAdmin(false);
+    } catch (error) {
+      console.error('Logout failed:', error);
     }
   };
 
@@ -481,7 +415,7 @@ export default function App() {
           setEditingDonor(null);
         }} 
         onAdd={handleAddDonor}
-        onEdit={handleEditDonor}
+        onEdit={handleAddDonor}
         editDonor={editingDonor}
       />
 
@@ -736,63 +670,110 @@ export default function App() {
 }
 
 function AdminDashboard() {
-  const [ads, setAds] = useState([
-    { id: 1, image: 'https://picsum.photos/seed/ad1/1200/300', link: 'https://google.com' },
-    { id: 2, image: 'https://picsum.photos/seed/ad2/1200/300', link: 'https://facebook.com' },
-  ]);
+  const [ads, setAds] = useState<any[]>([]);
+  const [newAd, setNewAd] = useState({ image: '', link: '' });
+  const [isAdding, setIsAdding] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'ads'), (snapshot) => {
+      setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAd.image || !newAd.link) return;
+    try {
+      await addDoc(collection(db, 'ads'), newAd);
+      setNewAd({ image: '', link: '' });
+      setIsAdding(false);
+    } catch (error) {
+      console.error('Failed to add ad:', error);
+    }
+  };
+
+  const handleDeleteAd = async (id: string) => {
+    if (window.confirm('বিজ্ঞাপনটি মুছে ফেলতে চান?')) {
+      try {
+        await deleteDoc(doc(db, 'ads', id));
+      } catch (error) {
+        console.error('Failed to delete ad:', error);
+      }
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <h2 className="text-3xl font-bold mb-8">অ্যাডমিন ড্যাশবোর্ড</h2>
       
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
-        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-          <ImageIcon /> বিজ্ঞাপন ম্যানেজমেন্ট
-        </h3>
-        
-        <div className="space-y-4">
-          {ads.map((ad, index) => (
-            <div key={ad.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-              <img src={ad.image} alt="Ad" className="w-20 h-20 object-cover rounded-xl" />
-              <div className="flex-1">
-                <p className="font-bold">বিজ্ঞাপন {index + 1}</p>
-                <p className="text-sm text-slate-500">{ad.link}</p>
-              </div>
-              <button 
-                onClick={() => setAds(ads.filter(a => a.id !== ad.id))}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-full"
-              >
-                <Trash2 size={20} />
-              </button>
-            </div>
-          ))}
-          
-          <button className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-bold hover:border-red-500 hover:text-red-500 transition-colors">
-            + নতুন বিজ্ঞাপন যোগ করুন
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <ImageIcon /> বিজ্ঞাপন ম্যানেজমেন্ট
+          </h3>
+          <button 
+            onClick={() => setIsAdding(!isAdding)}
+            className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors"
+          >
+            {isAdding ? 'বাতিল করুন' : '+ নতুন বিজ্ঞাপন'}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-            <p className="text-xl font-bold tracking-wider">
-              <span className="text-slate-300">Made With ❤️ </span>
-              <a 
-                href="https://www.facebook.com/Nurnoby.rohman.99" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="neon-text hover:text-white transition-colors inline-block"
-              >
-                নুরনবী রহমান
-              </a>
-            </p>
-          </div>
 
-          <p className="mt-8 text-xs text-slate-500">
-            © ২০২৬ রক্তদান - জীবন বাঁচান। সকল অধিকার সংরক্ষিত।
-          </p>
+        {isAdding && (
+          <form onSubmit={handleAddAd} className="mb-8 p-6 bg-slate-50 rounded-2xl space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">ছবির লিংক (URL)</label>
+                <input
+                  required
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                  value={newAd.image}
+                  onChange={(e) => setNewAd({ ...newAd, image: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">বিজ্ঞাপনের লিংক (URL)</label>
+                <input
+                  required
+                  type="url"
+                  placeholder="https://example.com"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                  value={newAd.link}
+                  onChange={(e) => setNewAd({ ...newAd, link: e.target.value })}
+                />
+              </div>
+            </div>
+            <button type="submit" className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors">
+              বিজ্ঞাপন যোগ করুন
+            </button>
+          </form>
+        )}
+        
+        <div className="space-y-4">
+          {ads.length === 0 ? (
+            <p className="text-center py-8 text-slate-400">কোনো বিজ্ঞাপন পাওয়া যায়নি</p>
+          ) : (
+            ads.map((ad, index) => (
+              <div key={ad.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                <img src={ad.image} alt="Ad" className="w-20 h-20 object-cover rounded-xl" />
+                <div className="flex-1">
+                  <p className="font-bold">বিজ্ঞাপন {index + 1}</p>
+                  <p className="text-sm text-slate-500 truncate max-w-xs md:max-w-md">{ad.link}</p>
+                </div>
+                <button 
+                  onClick={() => handleDeleteAd(ad.id)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            ))
+          )}
         </div>
-      </footer>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,103 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid}
+// Fields:
+//   - uid: string (required)
+//   - name: string (required)
+//   - email: string (required)
+//   - role: string (required, ['user', 'admin'])
+//
+// Collection: donors
+// Document ID: {donorId}
+// Fields:
+//   - id: string (required)
+//   - userId: string (required)
+//   - name: string (required)
+//   - bloodGroup: string (required)
+//   - location: string (required)
+//   - phone: string (required)
+//   - lastDonated: string (optional)
+//   - image: string (optional)
+//   - available: boolean (required)
+//   - facebookUrl: string (optional)
+//   - whatsappNumber: string (optional)
+//   - donationCount: number (required)
+//
+// Collection: requests
+// Document ID: {requestId}
+// Fields:
+//   - id: string (required)
+//   - requesterName: string (required)
+//   - bloodGroup: string (required)
+//   - location: string (required)
+//   - phone: string (required)
+//   - status: string (required, ['pending', 'accepted', 'rejected'])
+//   - createdAt: timestamp (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "sabihait20@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == uid && 
+                    hasOnlyAllowedFields(['uid', 'name', 'email', 'role']) &&
+                    request.resource.data.role == 'user'; // Default to user
+      allow update: if (isOwner(uid) && request.resource.data.role == resource.data.role) || isAdmin();
+    }
+
+    match /donors/{donorId} {
+      allow read: if true; // Publicly searchable
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /requests/{requestId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

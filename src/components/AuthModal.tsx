@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Droplets, MapPin, Phone, Calendar, Facebook, MessageCircle, Camera, Heart } from 'lucide-react';
 import { User as UserType, BloodGroup } from '../types';
-import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { auth, googleProvider, db } from '../firebase';
+import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -68,61 +69,62 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setSuccess('');
     setIsLoading(true);
 
-    let endpoint = '';
-    let method = 'POST';
-    let payload: any = {};
-
-    switch (mode) {
-      case 'login':
-        endpoint = '/api/auth/login';
-        payload = { email: formData.email, password: formData.password };
-        break;
-      case 'register':
-        endpoint = '/api/auth/register';
-        payload = formData;
-        break;
-      case 'forgot':
-        endpoint = '/api/auth/forgot-password';
-        payload = { email: formData.email, newPassword: formData.newPassword };
-        break;
-      case 'edit':
-        endpoint = '/api/auth/profile';
-        method = 'PUT';
-        const savedUser = JSON.parse(localStorage.getItem('blood_user') || '{}');
-        payload = { 
-          userId: savedUser.id, 
-          name: formData.name, 
-          email: formData.email, 
-          password: formData.password || undefined,
+    try {
+      if (mode === 'login') {
+        const result = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+        if (userDoc.exists()) {
+          onAuthSuccess({ id: result.user.uid, ...userDoc.data() } as UserType);
+        }
+        onClose();
+      } else if (mode === 'register') {
+        const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const userData = {
+          uid: result.user.uid,
+          name: formData.name,
+          email: formData.email,
+          role: 'user'
+        };
+        
+        // Create user doc
+        await setDoc(doc(db, 'users', result.user.uid), userData);
+        
+        // Create donor doc
+        const donorData = {
+          userId: result.user.uid,
+          name: formData.name,
+          bloodGroup: formData.bloodGroup,
+          location: formData.location,
+          phone: formData.phone,
+          lastDonated: formData.lastDonated,
+          image: formData.image,
+          available: true,
+          facebookUrl: formData.facebookUrl,
+          whatsappNumber: formData.whatsappNumber,
           donationCount: formData.donationCount
         };
-        break;
-    }
-    
-    try {
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (mode === 'login' || mode === 'register' || mode === 'edit') {
-          onAuthSuccess(data);
-          if (mode === 'edit') setSuccess('প্রোফাইল আপডেট হয়েছে!');
-          else onClose();
-        } else if (mode === 'forgot') {
-          setSuccess('পাসওয়ার্ড রিসেট হয়েছে! এখন লগইন করুন।');
-          setMode('login');
+        await setDoc(doc(db, 'donors', result.user.uid), donorData);
+        
+        onAuthSuccess({ id: result.user.uid, ...userData } as UserType);
+        onClose();
+      } else if (mode === 'forgot') {
+        await sendPasswordResetEmail(auth, formData.email);
+        setSuccess('পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে!');
+        setMode('login');
+      } else if (mode === 'edit') {
+        const user = auth.currentUser;
+        if (user) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            name: formData.name,
+            email: formData.email
+          });
+          onAuthSuccess({ id: user.uid, name: formData.name, email: formData.email } as UserType);
+          setSuccess('প্রোফাইল আপডেট হয়েছে!');
         }
-      } else {
-        const errorMsg = data.error || 'সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
-        setError(errorMsg);
       }
-    } catch (err) {
-      setError('Connection failed');
+    } catch (err: any) {
+      console.error('Auth error:', err);
+      setError(err.message || 'সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
     } finally {
       setIsLoading(false);
     }
@@ -426,24 +428,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         const result = await signInWithPopup(auth, googleProvider);
                         const user = result.user;
                         
-                        // Register/Login via backend
-                        const response = await fetch('/api/auth/google-register', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ uid: user.uid, name: user.displayName, email: user.email }),
-                        });
-                        
-                        if (response.ok) {
-                          const data = await response.json();
-                          onAuthSuccess(data);
-                          onClose();
+                        // Check if user exists in Firestore
+                        const userDoc = await getDoc(doc(db, 'users', user.uid));
+                        if (!userDoc.exists()) {
+                          const userData = {
+                            uid: user.uid,
+                            name: user.displayName || 'User',
+                            email: user.email || '',
+                            role: 'user'
+                          };
+                          await setDoc(doc(db, 'users', user.uid), userData);
+                          onAuthSuccess({ id: user.uid, ...userData } as UserType);
                         } else {
-                          const errorData = await response.json();
-                          console.error('Google registration error:', errorData);
-                          setError(`Google registration failed: ${errorData.error || 'Unknown error'}`);
+                          onAuthSuccess({ id: user.uid, ...userDoc.data() } as UserType);
                         }
-                      } catch (error) {
-                        setError('Google login failed');
+                        onClose();
+                      } catch (error: any) {
+                        console.error('Google login error:', error);
+                        setError('Google login failed: ' + error.message);
                       } finally {
                         setIsLoading(false);
                       }

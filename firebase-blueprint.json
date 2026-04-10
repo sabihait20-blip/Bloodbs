@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user account",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "Donor": {
+      "title": "Donor",
+      "description": "Blood donor profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "bloodGroup": { "type": "string" },
+        "location": { "type": "string" },
+        "phone": { "type": "string" },
+        "lastDonated": { "type": "string" },
+        "image": { "type": "string" },
+        "available": { "type": "boolean" },
+        "facebookUrl": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "donationCount": { "type": "number" }
+      },
+      "required": ["id", "userId", "name", "bloodGroup", "location", "phone"]
+    },
+    "Request": {
+      "title": "Blood Request",
+      "description": "Urgent blood request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "bloodGroup": { "type": "string" },
+        "location": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "requesterName", "bloodGroup", "location", "phone", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/donors/{donorId}": {
+      "schema": "Donor",
+      "description": "Donor profiles"
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Blood requests"
+    }
+  }
+}
