@@ -233,19 +233,24 @@ async function startServer() {
     try {
       const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase()) as any;
       if (user) {
+        console.log('User already exists:', user);
         res.json({ id: user.id, name: user.name, email: user.email });
       } else {
+        console.log('Registering new Google user:', uid, name, email);
         const donorId = Math.random().toString(36).substr(2, 9);
         const dbTransaction = db.transaction(() => {
           const userStmt = db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)");
           userStmt.run(uid, name || "Google User", email.toLowerCase(), "google-auth");
+          console.log('User inserted');
           const donorStmt = db.prepare(`
             INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, userId)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
           donorStmt.run(donorId, name || "Google User", 'A+', 'নির্ধারিত নয়', '01xxxxxxxxx', 'কখনো না', `https://picsum.photos/seed/${uid}/400/400`, 1, uid);
+          console.log('Donor inserted');
         });
         dbTransaction();
+        console.log('Transaction committed');
         res.status(201).json({ id: uid, name: name || "Google User", email: email.toLowerCase() });
       }
     } catch (error: any) {

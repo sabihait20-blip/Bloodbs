@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone } from 'lucide-react';
+import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
@@ -19,9 +19,18 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<'donors' | 'admin'>('donors');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentUser?.email === 'sabihait20@gmail.com') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
+    }
+  }, [currentUser]);
   const [notifications, setNotifications] = useState<Request[]>([]);
   const [acceptedRequests, setAcceptedRequests] = useState<Request[]>([]);
   const [stats, setStats] = useState({
@@ -322,7 +331,20 @@ export default function App() {
               রক্তদান
             </h1>
           </div>
+          
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button 
+                onClick={() => setActiveTab(activeTab === 'donors' ? 'admin' : 'donors')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
+                  activeTab === 'admin' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {activeTab === 'donors' ? <LayoutDashboard size={20} /> : <Users size={20} />}
+                {activeTab === 'donors' ? 'অ্যাডমিন ড্যাশবোর্ড' : 'হোম'}
+              </button>
+            )}
+            
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <button 
@@ -703,6 +725,56 @@ export default function App() {
           </p>
           
           <div className="py-6">
+            <p className="text-slate-500 text-xs">
+              © {new Date().getFullYear()} রক্তদান। সর্বস্বত্ব সংরক্ষিত।
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function AdminDashboard() {
+  const [ads, setAds] = useState([
+    { id: 1, image: 'https://picsum.photos/seed/ad1/1200/300', link: 'https://google.com' },
+    { id: 2, image: 'https://picsum.photos/seed/ad2/1200/300', link: 'https://facebook.com' },
+  ]);
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-12">
+      <h2 className="text-3xl font-bold mb-8">অ্যাডমিন ড্যাশবোর্ড</h2>
+      
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+          <ImageIcon /> বিজ্ঞাপন ম্যানেজমেন্ট
+        </h3>
+        
+        <div className="space-y-4">
+          {ads.map((ad, index) => (
+            <div key={ad.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+              <img src={ad.image} alt="Ad" className="w-20 h-20 object-cover rounded-xl" />
+              <div className="flex-1">
+                <p className="font-bold">বিজ্ঞাপন {index + 1}</p>
+                <p className="text-sm text-slate-500">{ad.link}</p>
+              </div>
+              <button 
+                onClick={() => setAds(ads.filter(a => a.id !== ad.id))}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-full"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          ))}
+          
+          <button className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-bold hover:border-red-500 hover:text-red-500 transition-colors">
+            + নতুন বিজ্ঞাপন যোগ করুন
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
             <p className="text-xl font-bold tracking-wider">
               <span className="text-slate-300">Made With ❤️ </span>
               <a 
