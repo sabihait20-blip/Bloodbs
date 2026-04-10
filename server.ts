@@ -223,6 +223,7 @@ async function startServer() {
   });
 
   app.post("/api/auth/google-register", (req, res) => {
+    console.log('Google register request:', req.body);
     const { uid, name, email } = req.body;
     try {
       const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase()) as any;
