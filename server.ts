@@ -222,6 +222,32 @@ async function startServer() {
     }
   });
 
+  app.post("/api/auth/google-register", (req, res) => {
+    const { uid, name, email } = req.body;
+    try {
+      const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
+      if (user) {
+        res.json({ id: user.id, name: user.name, email: user.email });
+      } else {
+        const donorId = Math.random().toString(36).substr(2, 9);
+        const dbTransaction = db.transaction(() => {
+          const userStmt = db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)");
+          userStmt.run(uid, name, email, "google-auth");
+          const donorStmt = db.prepare(`
+            INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, userId)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          donorStmt.run(donorId, name, 'A+', 'নির্ধারিত নয়', '01xxxxxxxxx', 'কখনো না', `https://picsum.photos/seed/${uid}/400/400`, 1, uid);
+        });
+        dbTransaction();
+        res.status(201).json({ id: uid, name, email });
+      }
+    } catch (error: any) {
+      console.error('Google registration error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.post("/api/auth/login", (req, res) => {
     try {
       const { email, password } = req.body;

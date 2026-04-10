@@ -425,9 +425,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                       try {
                         const result = await signInWithPopup(auth, googleProvider);
                         const user = result.user;
-                        // Handle successful Google login
-                        onAuthSuccess({ id: user.uid, name: user.displayName || '', email: user.email || '' });
-                        onClose();
+                        
+                        // Register/Login via backend
+                        const response = await fetch('/api/auth/google-register', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ uid: user.uid, name: user.displayName, email: user.email }),
+                        });
+                        
+                        if (response.ok) {
+                          const data = await response.json();
+                          onAuthSuccess(data);
+                          onClose();
+                        } else {
+                          setError('Google registration failed');
+                        }
                       } catch (error) {
                         setError('Google login failed');
                       } finally {
