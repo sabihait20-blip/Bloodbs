@@ -225,14 +225,14 @@ async function startServer() {
   app.post("/api/auth/google-register", (req, res) => {
     const { uid, name, email } = req.body;
     try {
-      const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
+      const user = db.prepare("SELECT * FROM users WHERE LOWER(email) = ?").get(email.toLowerCase()) as any;
       if (user) {
         res.json({ id: user.id, name: user.name, email: user.email });
       } else {
         const donorId = Math.random().toString(36).substr(2, 9);
         const dbTransaction = db.transaction(() => {
           const userStmt = db.prepare("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)");
-          userStmt.run(uid, name, email, "google-auth");
+          userStmt.run(uid, name, email.toLowerCase(), "google-auth");
           const donorStmt = db.prepare(`
             INSERT INTO donors (id, name, bloodGroup, location, phone, lastDonated, image, available, userId)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
