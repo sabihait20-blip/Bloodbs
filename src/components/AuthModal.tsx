@@ -74,7 +74,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         const result = await signInWithEmailAndPassword(auth, formData.email, formData.password);
         const userDoc = await getDoc(doc(db, 'users', result.user.uid));
         if (userDoc.exists()) {
-          onAuthSuccess({ id: result.user.uid, ...userDoc.data() } as UserType);
+          const userData = { id: result.user.uid, ...userDoc.data() } as UserType;
+          onAuthSuccess(userData);
         }
         onClose();
       } else if (mode === 'register') {
@@ -114,17 +115,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       } else if (mode === 'edit') {
         const user = auth.currentUser;
         if (user) {
-          await updateDoc(doc(db, 'users', user.uid), {
+          const userData = {
             name: formData.name,
             email: formData.email
-          });
-          onAuthSuccess({ id: user.uid, name: formData.name, email: formData.email } as UserType);
+          };
+          await updateDoc(doc(db, 'users', user.uid), userData);
+          
+          // Also update donor profile if it exists
+          const donorDoc = await getDoc(doc(db, 'donors', user.uid));
+          if (donorDoc.exists()) {
+            await updateDoc(doc(db, 'donors', user.uid), {
+              name: formData.name
+            });
+          }
+          
+          onAuthSuccess({ id: user.uid, ...userData } as UserType);
           setSuccess('প্রোফাইল আপডেট হয়েছে!');
         }
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      setError(err.message || 'সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      if (err.code === 'auth/email-already-in-use') {
+        setError('এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে। অনুগ্রহ করে লগইন করুন।');
+      } else {
+        setError(err.message || 'সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -438,6 +453,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                             role: 'user'
                           };
                           await setDoc(doc(db, 'users', user.uid), userData);
+                          
+                          // Create a basic donor profile for Google users too
+                          const donorData = {
+                            userId: user.uid,
+                            name: user.displayName || 'User',
+                            bloodGroup: 'O+', // Default
+                            location: 'নির্ধারিত নয়',
+                            phone: 'নির্ধারিত নয়',
+                            lastDonated: 'কখনো না',
+                            image: user.photoURL || `https://picsum.photos/seed/${user.uid}/400/400`,
+                            available: true,
+                            donationCount: 0
+                          };
+                          await setDoc(doc(db, 'donors', user.uid), donorData);
+                          
                           onAuthSuccess({ id: user.uid, ...userData } as UserType);
                         } else {
                           onAuthSuccess({ id: user.uid, ...userDoc.data() } as UserType);

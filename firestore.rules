@@ -95,6 +95,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Default deny
     match /{path=**} {
       allow read, write: if false;

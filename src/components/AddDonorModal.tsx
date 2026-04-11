@@ -9,11 +9,12 @@ interface AddDonorModalProps {
   onAdd: (donor: Donor) => void;
   onEdit?: (donor: Donor) => void;
   editDonor?: Donor | null;
+  showToast?: (msg: string, type?: 'success' | 'error') => void;
 }
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, onAdd, onEdit, editDonor }) => {
+export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, onAdd, onEdit, editDonor, showToast }) => {
   const [formData, setFormData] = useState({
     name: '',
     bloodGroup: 'O+' as BloodGroup,
@@ -30,7 +31,11 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        alert('ছবির সাইজ ২ মেগাবাইটের বেশি হওয়া যাবে না');
+        if (showToast) {
+          showToast('ছবির সাইজ ২ মেগাবাইটের বেশি হওয়া যাবে না', 'error');
+        } else {
+          console.error('ছবির সাইজ ২ মেগাবাইটের বেশি হওয়া যাবে না');
+        }
         return;
       }
       const reader = new FileReader();
@@ -76,17 +81,12 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
         ...editDonor,
         ...formData,
         image: formData.image || editDonor.image,
-        facebookUrl: formData.facebookUrl || undefined,
-        whatsappNumber: formData.whatsappNumber || undefined,
       });
     } else {
-      const newDonor: Donor = {
-        id: Math.random().toString(36).substr(2, 9),
+      const newDonor: any = {
         ...formData,
         image: formData.image || `https://picsum.photos/seed/${Math.random()}/400/400`,
         available: true,
-        facebookUrl: formData.facebookUrl || undefined,
-        whatsappNumber: formData.whatsappNumber || undefined,
       };
       onAdd(newDonor);
     }

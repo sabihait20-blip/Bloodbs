@@ -9,7 +9,8 @@ import { AdBanner } from './components/AdBanner';
 import { BloodGroup, Donor, User, Request } from './types';
 import { db, auth } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc, getDocs, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc, getDocs, orderBy, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -25,6 +26,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const [notifications, setNotifications] = useState<Request[]>([]);
   const [acceptedRequests, setAcceptedRequests] = useState<Request[]>([]);
@@ -46,26 +49,31 @@ export default function App() {
       if (firebaseUser) {
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
-          setCurrentUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
+          const userData = { id: firebaseUser.uid, ...userDoc.data() } as User;
+          setCurrentUser(userData);
+          // Check role from Firestore
+          if (userData.role === 'admin' || userData.email === 'sabihait20@gmail.com') {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
         } else {
           setCurrentUser({ id: firebaseUser.uid, name: firebaseUser.displayName || 'User', email: firebaseUser.email || '' });
+          if (firebaseUser.email === 'sabihait20@gmail.com') {
+            setIsAdmin(true);
+          }
         }
       } else {
         setCurrentUser(null);
         setIsAdmin(false);
+        setActiveTab('donors');
       }
       setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (currentUser?.email === 'sabihait20@gmail.com') {
-      setIsAdmin(true);
-    } else {
-      setIsAdmin(false);
-    }
-  }, [currentUser]);
+  // Remove the second useEffect for isAdmin as it's now handled in the auth listener
 
   // Firestore Listeners
   useEffect(() => {
@@ -81,6 +89,8 @@ export default function App() {
         donationsCompleted: totalDonations,
         activeDistricts: uniqueDistricts
       }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'donors');
     });
 
     const requestsUnsubscribe = onSnapshot(collection(db, 'requests'), (snapshot) => {
@@ -91,6 +101,8 @@ export default function App() {
         ...prev,
         urgentRequests: allRequests.filter(r => r.status === 'pending').length
       }));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'requests');
     });
 
     return () => {
@@ -99,6 +111,17 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+  };
+
   const handleAddRequest = async (request: { requesterName: string; bloodGroup: BloodGroup; location: string; phone: string }) => {
     try {
       await addDoc(collection(db, 'requests'), {
@@ -106,9 +129,9 @@ export default function App() {
         status: 'pending',
         createdAt: serverTimestamp()
       });
-      alert('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে। এটি অনুমোদনের জন্য অপেক্ষমান।');
+      showToast('আপনার অনুরোধটি সফলভাবে গ্রহণ করা হয়েছে। এটি অনুমোদনের জন্য অপেক্ষমান।');
     } catch (error) {
-      console.error('Failed to add request:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'requests');
     }
   };
 
@@ -119,13 +142,13 @@ export default function App() {
         window.location.href = `tel:${phone}`;
       }
     } catch (error) {
-      console.error('Failed to update status:', error);
+      handleFirestoreError(error, OperationType.WRITE, `requests/${id}`);
     }
   };
 
   const handleLogDonation = async () => {
     if (!userDonorProfile) {
-      alert('অনুগ্রহ করে আগে দাতা হিসেবে নিবন্ধন করুন।');
+      showToast('অনুগ্রহ করে আগে দাতা হিসেবে নিবন্ধন করুন।', 'error');
       return;
     }
     try {
@@ -134,9 +157,9 @@ export default function App() {
         donationCount: (userDonorProfile.donationCount || 0) + 1,
         lastDonated: new Date().toLocaleDateString('bn-BD')
       });
-      alert('অভিনন্দন! আপনার রক্তদান সফলভাবে রেকর্ড করা হয়েছে।');
+      showToast('অভিনন্দন! আপনার রক্তদান সফলভাবে রেকর্ড করা হয়েছে।');
     } catch (error) {
-      console.error('Failed to log donation:', error);
+      handleFirestoreError(error, OperationType.WRITE, `donors/${userDonorProfile.id}`);
     }
   };
 
@@ -146,25 +169,33 @@ export default function App() {
         await updateDoc(doc(db, 'donors', editingDonor.id), donorData);
         setEditingDonor(null);
       } else {
-        await addDoc(collection(db, 'donors'), {
+        // Use userId as doc ID if available
+        const docId = currentUser?.id || doc(collection(db, 'donors')).id;
+        await setDoc(doc(db, 'donors', docId), {
           ...donorData,
-          userId: currentUser?.id
+          userId: currentUser?.id || null
         });
       }
       setIsModalOpen(false);
+      showToast('তথ্য সফলভাবে সংরক্ষিত হয়েছে।');
     } catch (error) {
-      console.error('Failed to save donor:', error);
+      handleFirestoreError(error, OperationType.WRITE, editingDonor ? `donors/${editingDonor.id}` : 'donors');
     }
   };
 
   const handleDeleteDonor = async (id: string) => {
-    if (window.confirm('আপনি কি নিশ্চিতভাবে এই দাতা প্রোফাইলটি ডিলিট করতে চান?')) {
-      try {
-        await deleteDoc(doc(db, 'donors', id));
-      } catch (error) {
-        console.error('Failed to delete donor:', error);
+    setConfirmAction({
+      message: 'আপনি কি নিশ্চিতভাবে এই দাতা প্রোফাইলটি ডিলিট করতে চান?',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'donors', id));
+          showToast('দাতা প্রোফাইলটি ডিলিট করা হয়েছে।');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `donors/${id}`);
+        }
+        setConfirmAction(null);
       }
-    }
+    });
   };
 
   const handleAuthSuccess = (user: User) => {
@@ -202,6 +233,64 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl font-bold text-white flex items-center gap-2 ${
+              toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+            }`}
+          >
+            {toast.type === 'success' ? <Check size={20} /> : <X size={20} />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmAction && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setConfirmAction(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 mx-auto mb-4">
+                <ShieldOff size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">নিশ্চিত করুন</h3>
+              <p className="text-slate-500 mb-8">{confirmAction.message}</p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setConfirmAction(null)}
+                  className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                >
+                  বাতিল
+                </button>
+                <button
+                  onClick={confirmAction.onConfirm}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Notifications Overlay */}
       <div className="fixed top-20 right-4 z-[100] flex flex-col gap-4 pointer-events-none">
         <AnimatePresence>
@@ -315,7 +404,11 @@ export default function App() {
         onAuthSuccess={handleAuthSuccess} 
       />
 
-      {/* User Dashboard Section */}
+      {activeTab === 'admin' && isAdmin ? (
+        <AdminDashboard setConfirmAction={setConfirmAction} showToast={showToast} />
+      ) : (
+        <>
+          {/* User Dashboard Section */}
       {currentUser && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <motion.div 
@@ -417,6 +510,7 @@ export default function App() {
         onAdd={handleAddDonor}
         onEdit={handleAddDonor}
         editDonor={editingDonor}
+        showToast={showToast}
       />
 
       {/* Hero Section */}
@@ -645,6 +739,8 @@ export default function App() {
           </motion.div>
         )}
       </main>
+        </>
+      )}
 
       {/* Footer / Contact */}
       <AdBanner />
@@ -669,7 +765,7 @@ export default function App() {
   );
 }
 
-function AdminDashboard() {
+function AdminDashboard({ setConfirmAction, showToast }: { setConfirmAction: (action: any) => void; showToast: (msg: string, type?: 'success' | 'error') => void }) {
   const [ads, setAds] = useState<any[]>([]);
   const [newAd, setNewAd] = useState({ image: '', link: '' });
   const [isAdding, setIsAdding] = useState(false);
@@ -677,6 +773,8 @@ function AdminDashboard() {
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'ads'), (snapshot) => {
       setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'ads');
     });
     return () => unsubscribe();
   }, []);
@@ -689,18 +787,23 @@ function AdminDashboard() {
       setNewAd({ image: '', link: '' });
       setIsAdding(false);
     } catch (error) {
-      console.error('Failed to add ad:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'ads');
     }
   };
 
   const handleDeleteAd = async (id: string) => {
-    if (window.confirm('বিজ্ঞাপনটি মুছে ফেলতে চান?')) {
-      try {
-        await deleteDoc(doc(db, 'ads', id));
-      } catch (error) {
-        console.error('Failed to delete ad:', error);
+    setConfirmAction({
+      message: 'আপনি কি নিশ্চিতভাবে এই বিজ্ঞাপনটি ডিলিট করতে চান?',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'ads', id));
+          showToast('বিজ্ঞাপনটি ডিলিট করা হয়েছে।');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `ads/${id}`);
+        }
+        setConfirmAction(null);
       }
-    }
+    });
   };
 
   return (

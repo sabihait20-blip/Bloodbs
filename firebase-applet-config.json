@@ -1,9 +1,10 @@
 {
-  "apiKey": "AIzaSyBGJUKdJK3JQGJf-7FVuH28q5ujt70DVQg",
-  "authDomain": "bloodds-2130.firebaseapp.com",
-  "projectId": "bloodds-2130",
-  "storageBucket": "bloodds-2130.firebasestorage.app",
-  "messagingSenderId": "324761131533",
-  "appId": "1:324761131533:web:a918a8e284d4e87e251344",
-  "measurementId": "G-GMTYRXG5D1"
+  "projectId": "gen-lang-client-0513016851",
+  "appId": "1:189713485292:web:f3f7102d311d7d70c3c4c9",
+  "apiKey": "AIzaSyAk9vWC9WXVVzuGTR8BjHDwXPnQzzaNHAw",
+  "authDomain": "gen-lang-client-0513016851.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-53b11c0d-17a3-4c14-9487-301277a1d574",
+  "storageBucket": "gen-lang-client-0513016851.firebasestorage.app",
+  "messagingSenderId": "189713485292",
+  "measurementId": ""
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 export function AdBanner() {
   const [ads, setAds] = useState<any[]>([]);
@@ -10,6 +11,8 @@ export function AdBanner() {
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'ads'), (snapshot) => {
       setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'ads');
     });
     return () => unsubscribe();
   }, []);
