@@ -34,6 +34,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setError('আপনার ব্রাউজার লোকেশন সাপোর্ট করে না');
+      return;
+    }
+
+    setIsLocating(true);
+    setError('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`
+          );
+          const data = await response.json();
+          
+          // Try to get a meaningful address (City/District)
+          const address = data.address;
+          const locationName = address.city || address.town || address.suburb || address.district || address.state || 'লোকেশন পাওয়া যায়নি';
+          
+          setFormData(prev => ({ ...prev, location: locationName }));
+          setSuccess('লোকেশন সফলভাবে পাওয়া গেছে');
+        } catch (err) {
+          console.error('Location error:', err);
+          setError('ঠিকানা খুঁজে পেতে সমস্যা হয়েছে');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        setError('লোকেশন পারমিশন প্রয়োজন বা জিপিএস বন্ধ আছে');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -361,14 +402,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         <MapPin size={16} className="text-red-500" />
                         বর্তমান ঠিকানা
                       </label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="শহর, জেলা"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                        value={formData.location}
-                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      />
+                      <div className="relative">
+                        <input
+                          required
+                          type="text"
+                          placeholder="শহর, জেলা"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all pr-12"
+                          value={formData.location}
+                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                          onClick={() => {
+                            if (!formData.location && mode === 'edit') {
+                              handleGetLocation();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGetLocation}
+                          disabled={isLocating}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          title="বর্তমান লোকেশন নিন"
+                        >
+                          <MapPin size={20} className={isLocating ? 'animate-bounce text-red-600' : ''} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
