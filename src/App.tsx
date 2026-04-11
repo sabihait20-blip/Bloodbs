@@ -20,6 +20,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot' | 'edit'>('login');
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'donors' | 'admin'>('donors');
@@ -371,7 +372,10 @@ export default function App() {
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => setIsAuthModalOpen(true)}
+                  onClick={() => {
+                    setAuthModalMode('edit');
+                    setIsAuthModalOpen(true);
+                  }}
                   className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-slate-700 hover:bg-slate-200 transition-colors"
                 >
                   <UserIcon size={16} className="text-red-500" />
@@ -387,7 +391,10 @@ export default function App() {
               </div>
             ) : (
               <button 
-                onClick={() => setIsAuthModalOpen(true)}
+                onClick={() => {
+                  setAuthModalMode('login');
+                  setIsAuthModalOpen(true);
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-full font-semibold hover:bg-slate-200 transition-colors"
               >
                 <LogIn size={20} />
@@ -402,6 +409,7 @@ export default function App() {
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
         onAuthSuccess={handleAuthSuccess} 
+        initialMode={authModalMode}
       />
 
       {activeTab === 'admin' && isAdmin ? (
@@ -438,7 +446,10 @@ export default function App() {
                       <span className="px-2 py-1 bg-emerald-100 text-emerald-600 text-xs font-bold rounded-lg">সক্রিয় দাতা</span>
                     </div>
                     <button 
-                      onClick={() => setIsAuthModalOpen(true)}
+                      onClick={() => {
+                        setAuthModalMode('edit');
+                        setIsAuthModalOpen(true);
+                      }}
                       className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
                     >
                       <UserIcon size={16} />

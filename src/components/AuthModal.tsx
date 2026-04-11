@@ -10,12 +10,13 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess: (user: UserType) => void;
+  initialMode?: 'login' | 'register' | 'forgot' | 'edit';
 }
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'edit'>('login');
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, initialMode = 'login' }) => {
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'edit'>(initialMode);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -51,17 +52,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
   // Initialize form if editing
   React.useEffect(() => {
-    const savedUser = localStorage.getItem('blood_user');
-    if (savedUser && mode === 'edit') {
-      const user = JSON.parse(savedUser);
-      setFormData(prev => ({ 
-        ...prev, 
-        name: user.name, 
-        email: user.email,
-        donationCount: user.donationCount || 0
-      }));
+    if (isOpen && initialMode) {
+      setMode(initialMode);
     }
-  }, [mode]);
+  }, [isOpen, initialMode]);
+
+  React.useEffect(() => {
+    const user = auth.currentUser;
+    if (user && mode === 'edit') {
+      // Fetch fresh data from Firestore to populate the form
+      const fetchUserData = async () => {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const donorDoc = await getDoc(doc(db, 'donors', user.uid));
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setFormData(prev => ({ 
+            ...prev, 
+            name: userData.name || '', 
+            email: userData.email || '',
+          }));
+        }
+        
+        if (donorDoc.exists()) {
+          const donorData = donorDoc.data();
+          setFormData(prev => ({
+            ...prev,
+            bloodGroup: donorData.bloodGroup || 'A+',
+            location: donorData.location || '',
+            phone: donorData.phone || '',
+            lastDonated: donorData.lastDonated || 'কখনো না',
+            image: donorData.image || '',
+            facebookUrl: donorData.facebookUrl || '',
+            whatsappNumber: donorData.whatsappNumber || '',
+            donationCount: donorData.donationCount || 0,
+          }));
+        }
+      };
+      
+      fetchUserData();
+    }
+  }, [mode, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +156,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           const donorDoc = await getDoc(doc(db, 'donors', user.uid));
           if (donorDoc.exists()) {
             await updateDoc(doc(db, 'donors', user.uid), {
-              name: formData.name
+              name: formData.name,
+              bloodGroup: formData.bloodGroup,
+              location: formData.location,
+              phone: formData.phone,
+              lastDonated: formData.lastDonated,
+              image: formData.image,
+              facebookUrl: formData.facebookUrl,
+              whatsappNumber: formData.whatsappNumber,
+              donationCount: formData.donationCount
             });
           }
           
@@ -274,7 +313,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 )}
               </div>
 
-              {mode === 'register' && (
+              {(mode === 'register' || mode === 'edit') && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
