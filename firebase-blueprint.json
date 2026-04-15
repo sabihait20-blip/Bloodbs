@@ -8,7 +8,10 @@
         "uid": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["user", "admin"] }
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "isVerified": { "type": "boolean" },
+        "points": { "type": "number" },
+        "badges": { "type": "array" }
       },
       "required": ["uid", "name", "email"]
     },
@@ -28,7 +31,10 @@
         "available": { "type": "boolean" },
         "facebookUrl": { "type": "string" },
         "whatsappNumber": { "type": "string" },
-        "donationCount": { "type": "number" }
+        "donationCount": { "type": "number" },
+        "isVerified": { "type": "boolean" },
+        "points": { "type": "number" },
+        "badges": { "type": "array" }
       },
       "required": ["id", "userId", "name", "bloodGroup", "location", "phone"]
     },
@@ -46,6 +52,19 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "requesterName", "bloodGroup", "location", "phone", "status"]
+    },
+    "Hospital": {
+      "title": "Hospital",
+      "description": "Blood bank or hospital",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "phone": { "type": "string" },
+        "type": { "type": "string", "enum": ["hospital", "blood_bank"] }
+      },
+      "required": ["id", "name", "location", "phone", "type"]
     }
   },
   "firestore": {
@@ -60,6 +79,10 @@
     "/requests/{requestId}": {
       "schema": "Request",
       "description": "Blood requests"
+    },
+    "/hospitals/{hospitalId}": {
+      "schema": "Hospital",
+      "description": "Blood banks and hospitals"
     }
   }
 }

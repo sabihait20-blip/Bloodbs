@@ -1,12 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2, Building2 } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
 import { RequestModal } from './components/RequestModal';
 import { AdBanner } from './components/AdBanner';
-import { BloodGroup, Donor, User, Request } from './types';
+import { HospitalDirectory } from './components/HospitalDirectory';
+import { DonorListModal } from './components/DonorListModal';
+import { INITIAL_HOSPITALS } from './lib/hospitalData';
+import { BloodGroup, Donor, User, Request, Hospital } from './types';
 import { db, auth } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc, getDocs, orderBy, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
@@ -22,8 +25,9 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot' | 'edit'>('login');
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [isDonorListModalOpen, setIsDonorListModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<'donors' | 'admin'>('donors');
+  const [activeTab, setActiveTab] = useState<'donors' | 'admin' | 'hospitals'>('donors');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,6 +127,23 @@ export default function App() {
     setToast({ message, type });
   };
 
+  const handleDonorClick = (donorId: string) => {
+    setActiveTab('donors');
+    setSearchQuery('');
+    setSelectedGroup('All');
+    
+    setTimeout(() => {
+      const element = document.getElementById(`donor-${donorId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('ring-4', 'ring-red-500', 'ring-opacity-50', 'rounded-2xl');
+        setTimeout(() => {
+          element.classList.remove('ring-4', 'ring-red-500', 'ring-opacity-50', 'rounded-2xl');
+        }, 3000);
+      }
+    }, 100);
+  };
+
   const handleAddRequest = async (request: { requesterName: string; bloodGroup: BloodGroup; location: string; phone: string }) => {
     try {
       await addDoc(collection(db, 'requests'), {
@@ -153,10 +174,19 @@ export default function App() {
       return;
     }
     try {
+      const newDonationCount = (userDonorProfile.donationCount || 0) + 1;
+      const newPoints = newDonationCount * 50; // 50 points per donation
+      const newBadges = [];
+      if (newDonationCount >= 1) newBadges.push('প্রথম রক্তদান');
+      if (newDonationCount >= 5) newBadges.push('রক্তদাতা হিরো');
+      if (newDonationCount >= 10) newBadges.push('সুপার ডোনার');
+
       const donorRef = doc(db, 'donors', userDonorProfile.id);
       await updateDoc(donorRef, {
-        donationCount: (userDonorProfile.donationCount || 0) + 1,
-        lastDonated: new Date().toLocaleDateString('bn-BD')
+        donationCount: newDonationCount,
+        lastDonated: new Date().toLocaleDateString('bn-BD'),
+        points: newPoints,
+        badges: newBadges
       });
       showToast('অভিনন্দন! আপনার রক্তদান সফলভাবে রেকর্ড করা হয়েছে।');
     } catch (error) {
@@ -359,7 +389,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button 
-                onClick={() => setActiveTab(activeTab === 'donors' ? 'admin' : 'donors')}
+                onClick={() => setActiveTab(activeTab === 'admin' ? 'donors' : 'admin')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
                   activeTab === 'admin' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
@@ -368,6 +398,15 @@ export default function App() {
                 {activeTab === 'donors' ? 'অ্যাডমিন ড্যাশবোর্ড' : 'হোম'}
               </button>
             )}
+            <button 
+              onClick={() => setActiveTab(activeTab === 'hospitals' ? 'donors' : 'hospitals')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
+                activeTab === 'hospitals' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Building2 size={20} />
+              হাসপাতাল
+            </button>
             
             {currentUser ? (
               <div className="flex items-center gap-2">
@@ -405,6 +444,13 @@ export default function App() {
         </div>
       </header>
 
+      <DonorListModal
+        isOpen={isDonorListModalOpen}
+        onClose={() => setIsDonorListModalOpen(false)}
+        donors={donors}
+        onDonorClick={handleDonorClick}
+      />
+
       <AuthModal 
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
@@ -414,6 +460,8 @@ export default function App() {
 
       {activeTab === 'admin' && isAdmin ? (
         <AdminDashboard setConfirmAction={setConfirmAction} showToast={showToast} />
+      ) : activeTab === 'hospitals' ? (
+        <HospitalDirectory />
       ) : (
         <>
           {/* User Dashboard Section */}
@@ -616,7 +664,7 @@ export default function App() {
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'মোট দাতা', value: `${stats.totalDonors}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'মোট দাতা', value: `${stats.totalDonors}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', onClick: () => setIsDonorListModalOpen(true) },
             { label: 'রক্তদান সম্পন্ন', value: `${stats.donationsCompleted}`, icon: Heart, color: 'text-red-600', bg: 'bg-red-50' },
             { label: 'জরুরি অনুরোধ', value: `${stats.urgentRequests}`, icon: Droplets, color: 'text-orange-600', bg: 'bg-orange-50' },
             { label: 'সক্রিয় এলাকা', value: `${stats.activeDistricts} জেলা`, icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -626,7 +674,8 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:border-red-100 transition-colors group"
+              onClick={stat.onClick}
+              className={`bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:border-red-100 transition-all group ${stat.onClick ? 'cursor-pointer hover:shadow-md hover:scale-105 active:scale-95' : ''}`}
             >
               <motion.div 
                 animate={stat.icon === Droplets || stat.icon === Heart ? { scale: [1, 1.1, 1] } : {}}
@@ -719,14 +768,12 @@ export default function App() {
         </div>
 
         {filteredDonors.length > 0 ? (
-          <motion.div 
-            layout
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <AnimatePresence mode='popLayout'>
               {filteredDonors.map((donor) => (
                 <DonorCard 
                   key={donor.id} 
+                  id={`donor-${donor.id}`}
                   donor={donor} 
                   isAdmin={isAdmin}
                   currentUserId={currentUser?.id}
@@ -735,7 +782,7 @@ export default function App() {
                 />
               ))}
             </AnimatePresence>
-          </motion.div>
+          </div>
         ) : (
           <motion.div 
             initial={{ opacity: 0 }}
@@ -778,17 +825,75 @@ export default function App() {
 
 function AdminDashboard({ setConfirmAction, showToast }: { setConfirmAction: (action: any) => void; showToast: (msg: string, type?: 'success' | 'error') => void }) {
   const [ads, setAds] = useState<any[]>([]);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [newAd, setNewAd] = useState({ image: '', link: '' });
+  const [newHospital, setNewHospital] = useState({ name: '', location: '', phone: '', type: 'hospital' as 'hospital' | 'blood_bank' });
   const [isAdding, setIsAdding] = useState(false);
+  const [isAddingHospital, setIsAddingHospital] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'ads'), (snapshot) => {
+    const adsUnsubscribe = onSnapshot(collection(db, 'ads'), (snapshot) => {
       setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'ads');
     });
-    return () => unsubscribe();
+
+    const hospitalsUnsubscribe = onSnapshot(collection(db, 'hospitals'), (snapshot) => {
+      setHospitals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Hospital)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'hospitals');
+    });
+
+    return () => {
+      adsUnsubscribe();
+      hospitalsUnsubscribe();
+    };
   }, []);
+
+  const handleSeedHospitals = async () => {
+    try {
+      const existingHospitals = await getDocs(collection(db, 'hospitals'));
+      if (existingHospitals.size > 0) {
+        showToast('হাসপাতাল ডাটা ইতিমধ্যে বিদ্যমান।', 'error');
+        return;
+      }
+      
+      for (const hospital of INITIAL_HOSPITALS) {
+        await addDoc(collection(db, 'hospitals'), hospital);
+      }
+      showToast('বাংলাদেশের প্রধান হাসপাতাল ও ব্লাড ব্যাংক ডাটা সফলভাবে যোগ করা হয়েছে।');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'hospitals');
+    }
+  };
+
+  const handleAddHospital = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHospital.name || !newHospital.location || !newHospital.phone) return;
+    try {
+      await addDoc(collection(db, 'hospitals'), newHospital);
+      setNewHospital({ name: '', location: '', phone: '', type: 'hospital' });
+      setIsAddingHospital(false);
+      showToast('নতুন হাসপাতাল যোগ করা হয়েছে।');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'hospitals');
+    }
+  };
+
+  const handleDeleteHospital = async (id: string) => {
+    setConfirmAction({
+      message: 'আপনি কি নিশ্চিতভাবে এই হাসপাতালটি ডিলিট করতে চান?',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'hospitals', id));
+          showToast('হাসপাতালটি ডিলিট করা হয়েছে।');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `hospitals/${id}`);
+        }
+        setConfirmAction(null);
+      }
+    });
+  };
 
   const handleAddAd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -879,6 +984,106 @@ function AdminDashboard({ setConfirmAction, showToast }: { setConfirmAction: (ac
                 </div>
                 <button 
                   onClick={() => handleDeleteAd(ad.id)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mt-8">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <Building2 /> হাসপাতাল ও ব্লাড ব্যাংক ম্যানেজমেন্ট
+          </h3>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleSeedHospitals}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors"
+            >
+              Seed Initial Data
+            </button>
+            <button 
+              onClick={() => setIsAddingHospital(!isAddingHospital)}
+              className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors"
+            >
+              {isAddingHospital ? 'বাতিল করুন' : '+ নতুন হাসপাতাল'}
+            </button>
+          </div>
+        </div>
+
+        {isAddingHospital && (
+          <form onSubmit={handleAddHospital} className="mb-8 p-6 bg-slate-50 rounded-2xl space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">নাম</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="হাসপাতালের নাম"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                  value={newHospital.name}
+                  onChange={(e) => setNewHospital({ ...newHospital, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">ঠিকানা</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="শহর, জেলা"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                  value={newHospital.location}
+                  onChange={(e) => setNewHospital({ ...newHospital, location: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">ফোন নম্বর</label>
+                <input
+                  required
+                  type="tel"
+                  placeholder="01xxxxxxxxx"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                  value={newHospital.phone}
+                  onChange={(e) => setNewHospital({ ...newHospital, phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">ধরণ</label>
+                <select
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none"
+                  value={newHospital.type}
+                  onChange={(e) => setNewHospital({ ...newHospital, type: e.target.value as 'hospital' | 'blood_bank' })}
+                >
+                  <option value="hospital">হাসপাতাল</option>
+                  <option value="blood_bank">ব্লাড ব্যাংক</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors">
+              হাসপাতাল যোগ করুন
+            </button>
+          </form>
+        )}
+
+        <div className="space-y-4">
+          {hospitals.length === 0 ? (
+            <p className="text-center py-8 text-slate-400">কোনো হাসপাতাল পাওয়া যায়নি</p>
+          ) : (
+            hospitals.map((h) => (
+              <div key={h.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${h.type === 'hospital' ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+                  {h.type === 'hospital' ? <Building2 size={24} /> : <Droplets size={24} />}
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold">{h.name}</p>
+                  <p className="text-sm text-slate-500">{h.location} • {h.phone}</p>
+                </div>
+                <button 
+                  onClick={() => handleDeleteHospital(h.id)}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-full"
                 >
                   <Trash2 size={20} />

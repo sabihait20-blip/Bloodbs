@@ -13,9 +13,10 @@ export const DonorCard: React.FC<{
   donor: Donor; 
   isAdmin?: boolean;
   currentUserId?: string;
+  id?: string;
   onEdit?: (donor: Donor) => void;
   onDelete?: (id: string) => void;
-}> = ({ donor, isAdmin, currentUserId, onEdit, onDelete }) => {
+}> = ({ donor, isAdmin, currentUserId, id, onEdit, onDelete }) => {
   const whatsappUrl = donor.whatsappNumber 
     ? `https://wa.me/${donor.whatsappNumber.replace(/\D/g, '')}` 
     : null;
@@ -24,6 +25,7 @@ export const DonorCard: React.FC<{
 
   return (
     <motion.div
+      id={id}
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -68,10 +70,20 @@ export const DonorCard: React.FC<{
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className={cn(
-              "absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white",
-              donor.available ? "bg-emerald-500" : "bg-slate-300"
-            )} />
+            <motion.div 
+              animate={{ 
+                scale: donor.available ? [1, 1.15, 1] : 1,
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: donor.available ? Infinity : 0,
+                ease: "easeInOut" 
+              }}
+              className={cn(
+                "absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white shadow-sm",
+                donor.available ? "bg-emerald-500" : "bg-slate-300"
+              )} 
+            />
           </div>
 
           {/* Basic Info */}
@@ -156,12 +168,17 @@ export const DonorCard: React.FC<{
               <Droplets size={16} className="text-red-500" />
               <span>অবস্থা:</span>
             </div>
-            <span className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-semibold",
-              donor.available ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-            )}>
+            <motion.span 
+              key={donor.available ? 'available' : 'unavailable'}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-semibold transition-colors duration-500",
+                donor.available ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+              )}
+            >
               {donor.available ? 'রক্ত দিতে পারবেন' : 'এখন পারবেন না'}
-            </span>
+            </motion.span>
           </div>
         </div>
 

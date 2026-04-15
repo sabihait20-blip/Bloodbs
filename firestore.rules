@@ -9,6 +9,9 @@
 //   - name: string (required)
 //   - email: string (required)
 //   - role: string (required, ['user', 'admin'])
+//   - isVerified: boolean (optional)
+//   - points: number (optional)
+//   - badges: list (optional)
 //
 // Collection: donors
 // Document ID: {donorId}
@@ -25,6 +28,9 @@
 //   - facebookUrl: string (optional)
 //   - whatsappNumber: string (optional)
 //   - donationCount: number (required)
+//   - isVerified: boolean (optional)
+//   - points: number (optional)
+//   - badges: list (optional)
 //
 // Collection: requests
 // Document ID: {requestId}
@@ -36,6 +42,15 @@
 //   - phone: string (required)
 //   - status: string (required, ['pending', 'accepted', 'rejected'])
 //   - createdAt: timestamp (required)
+//
+// Collection: hospitals
+// Document ID: {hospitalId}
+// Fields:
+//   - id: string (required)
+//   - name: string (required)
+//   - location: string (required)
+//   - phone: string (required)
+//   - type: string (required, ['hospital', 'blood_bank'])
 //
 // ===============================================================
 
@@ -76,7 +91,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if isAuthenticated() && request.auth.uid == uid && 
-                    hasOnlyAllowedFields(['uid', 'name', 'email', 'role']) &&
+                    hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'isVerified', 'points', 'badges']) &&
                     request.resource.data.role == 'user'; // Default to user
       allow update: if (isOwner(uid) && request.resource.data.role == resource.data.role) || isAdmin();
     }
@@ -96,6 +111,11 @@ service cloud.firestore {
     }
 
     match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /hospitals/{hospitalId} {
       allow read: if true;
       allow write: if isAdmin();
     }

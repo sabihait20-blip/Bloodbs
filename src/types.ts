@@ -5,6 +5,9 @@ export interface User {
   name: string;
   email: string;
   role?: 'user' | 'admin';
+  isVerified?: boolean;
+  points?: number;
+  badges?: string[];
 }
 
 export interface Request {
@@ -30,4 +33,17 @@ export interface Donor {
   facebookUrl?: string;
   whatsappNumber?: string;
   userId?: string;
+  isVerified?: boolean;
+  points?: number;
+  badges?: string[];
+  nidUrl?: string;
+  medicalReportUrl?: string;
+}
+
+export interface Hospital {
+  id: string;
+  name: string;
+  location: string;
+  phone: string;
+  type: 'hospital' | 'blood_bank';
 }

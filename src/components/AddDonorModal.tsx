@@ -25,6 +25,8 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
     facebookUrl: '',
     whatsappNumber: '',
     donationCount: 0,
+    nidUrl: '',
+    medicalReportUrl: '',
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -277,6 +279,50 @@ export const AddDonorModal: React.FC<AddDonorModalProps> = ({ isOpen, onClose, o
                   value={formData.whatsappNumber}
                   onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* NID Upload */}
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Camera size={16} className="text-red-500" />
+                    এনআইডি (NID)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setFormData(prev => ({ ...prev, nidUrl: reader.result as string }));
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Medical Report Upload */}
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Camera size={16} className="text-red-500" />
+                    মেডিকেল রিপোর্ট
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setFormData(prev => ({ ...prev, medicalReportUrl: reader.result as string }));
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </div>
               </div>
 
               <button
