@@ -84,6 +84,29 @@ service cloud.firestore {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
+    function isValidUser(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['user', 'admin'];
+    }
+
+    function isValidDonor(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.bloodGroup is string && data.bloodGroup.size() < 5 &&
+             data.location is string && data.location.size() < 200 &&
+             data.phone is string && data.phone.size() < 20 &&
+             data.available is bool &&
+             data.donationCount is number && data.donationCount >= 0;
+    }
+
+    function isValidRequest(data) {
+      return data.requesterName is string && data.requesterName.size() > 0 && data.requesterName.size() < 100 &&
+             data.bloodGroup is string && data.bloodGroup.size() < 5 &&
+             data.location is string && data.location.size() < 200 &&
+             data.phone is string && data.phone.size() < 20 &&
+             data.status in ['pending', 'accepted', 'rejected'];
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -92,21 +115,22 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if isAuthenticated() && request.auth.uid == uid && 
                     hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'isVerified', 'points', 'badges']) &&
+                    isValidUser(request.resource.data) &&
                     request.resource.data.role == 'user'; // Default to user
-      allow update: if (isOwner(uid) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow update: if (isOwner(uid) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
     }
 
     match /donors/{donorId} {
       allow read: if true; // Publicly searchable
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidDonor(request.resource.data);
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid && isValidDonor(request.resource.data)) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /requests/{requestId} {
       allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAdmin();
+      allow create: if isAuthenticated() && isValidRequest(request.resource.data);
+      allow update: if isAdmin() && isValidRequest(request.resource.data);
       allow delete: if isAdmin();
     }
 
