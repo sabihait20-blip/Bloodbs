@@ -72,8 +72,9 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "sabihait20@gmail.com" && request.auth.token.email_verified == true));
+        (request.auth.token.email == "sabihait20@gmail.com" || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
     function hasOnlyAllowedFields(fields) {
@@ -87,7 +88,7 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
-             data.role in ['user', 'admin'];
+             (!('role' in data) || data.role in ['user', 'admin']);
     }
 
     function isValidDonor(data) {
@@ -95,8 +96,8 @@ service cloud.firestore {
              data.bloodGroup is string && data.bloodGroup.size() < 5 &&
              data.location is string && data.location.size() < 200 &&
              data.phone is string && data.phone.size() < 20 &&
-             data.available is bool &&
-             data.donationCount is number && data.donationCount >= 0;
+             (!('available' in data) || data.available is bool) &&
+             (!('donationCount' in data) || (data.donationCount is number && data.donationCount >= 0));
     }
 
     function isValidRequest(data) {
@@ -104,7 +105,7 @@ service cloud.firestore {
              data.bloodGroup is string && data.bloodGroup.size() < 5 &&
              data.location is string && data.location.size() < 200 &&
              data.phone is string && data.phone.size() < 20 &&
-             data.status in ['pending', 'accepted', 'rejected'];
+             (!('status' in data) || data.status in ['pending', 'accepted', 'rejected']);
     }
 
     // ===============================================================
@@ -142,6 +143,21 @@ service cloud.firestore {
     match /hospitals/{hospitalId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.participants;
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants && request.resource.data.senderId == request.auth.uid;
     }
 
     // Default deny

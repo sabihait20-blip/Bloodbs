@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Phone, MapPin, Calendar, Droplets, Facebook, MessageCircle, Edit2, Trash2, Heart } from 'lucide-react';
+import { Phone, MapPin, Calendar, Droplets, Facebook, MessageCircle, Edit2, Trash2, Heart, MessageSquare } from 'lucide-react';
 import { Donor } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -16,7 +16,8 @@ export const DonorCard: React.FC<{
   id?: string;
   onEdit?: (donor: Donor) => void;
   onDelete?: (id: string) => void;
-}> = ({ donor, isAdmin, currentUserId, id, onEdit, onDelete }) => {
+  onChat?: (userId: string, userName: string) => void;
+}> = ({ donor, isAdmin, currentUserId, id, onEdit, onDelete, onChat }) => {
   const whatsappUrl = donor.whatsappNumber 
     ? `https://wa.me/${donor.whatsappNumber.replace(/\D/g, '')}` 
     : null;
@@ -136,6 +137,15 @@ export const DonorCard: React.FC<{
                   <MessageCircle size={16} />
                 </a>
               )}
+              {donor.userId && donor.userId !== currentUserId && (
+                <button 
+                  onClick={() => onChat?.(donor.userId!, donor.name)}
+                  className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"
+                  title="Send Message"
+                >
+                  <MessageSquare size={16} />
+                </button>
+              )}
               {isAdmin && (
                 <div className="ml-auto bg-red-50 text-red-600 px-2 py-0.5 rounded text-xs font-bold">
                   {donor.bloodGroup}
@@ -183,13 +193,15 @@ export const DonorCard: React.FC<{
         </div>
 
         {/* Action Button */}
-        <a
-          href={`tel:${donor.phone}`}
-          className="mt-6 w-full flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-red-600 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-red-200 group/btn"
-        >
-          <Phone size={18} className="group-hover/btn:animate-bounce" />
-          কল করুন
-        </a>
+        <div className="mt-6 flex gap-2">
+          <a
+            href={`tel:${donor.phone}`}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-red-600 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-red-200 group/btn"
+          >
+            <Phone size={18} className="group-hover/btn:animate-bounce" />
+            কল করুন
+          </a>
+        </div>
       </div>
     </motion.div>
   );

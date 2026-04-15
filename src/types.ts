@@ -47,3 +47,19 @@ export interface Hospital {
   phone: string;
   type: 'hospital' | 'blood_bank';
 }
+
+export interface Chat {
+  id: string;
+  participants: string[];
+  lastMessage?: string;
+  lastTimestamp?: any;
+  participantNames?: { [key: string]: string };
+}
+
+export interface Message {
+  id: string;
+  chatId: string;
+  senderId: string;
+  text: string;
+  timestamp: any;
+}

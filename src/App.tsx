@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2, Building2 } from 'lucide-react';
+import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2, Building2, MessageSquare } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
@@ -8,6 +8,7 @@ import { RequestModal } from './components/RequestModal';
 import { AdBanner } from './components/AdBanner';
 import { HospitalDirectory } from './components/HospitalDirectory';
 import { DonorListModal } from './components/DonorListModal';
+import { ChatModal } from './components/ChatModal';
 import { INITIAL_HOSPITALS } from './lib/hospitalData';
 import { BloodGroup, Donor, User, Request, Hospital } from './types';
 import { db, auth } from './firebase';
@@ -26,6 +27,8 @@ export default function App() {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot' | 'edit'>('login');
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isDonorListModalOpen, setIsDonorListModalOpen] = useState(false);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [chatTarget, setChatTarget] = useState<{ id: string; name: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'donors' | 'admin' | 'hospitals'>('donors');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -158,6 +161,16 @@ export default function App() {
         }, 3000);
       }
     }, 100);
+  };
+
+  const handleOpenChat = (userId: string, userName: string) => {
+    if (!currentUser) {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setChatTarget({ id: userId, name: userName });
+    setIsChatModalOpen(true);
   };
 
   const handleAddRequest = async (request: { requesterName: string; bloodGroup: BloodGroup; location: string; phone: string }) => {
@@ -466,6 +479,31 @@ export default function App() {
         donors={donors}
         onDonorClick={handleDonorClick}
       />
+
+      <ChatModal
+        isOpen={isChatModalOpen}
+        onClose={() => {
+          setIsChatModalOpen(false);
+          setChatTarget(null);
+        }}
+        currentUser={currentUser}
+        targetUserId={chatTarget?.id}
+        targetUserName={chatTarget?.name}
+      />
+
+      {/* Floating Chat Button */}
+      {currentUser && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsChatModalOpen(true)}
+          className="fixed bottom-24 right-6 z-[90] w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-red-700 transition-colors"
+        >
+          <MessageSquare size={28} />
+        </motion.button>
+      )}
 
       <AuthModal 
         isOpen={isAuthModalOpen} 
@@ -795,6 +833,7 @@ export default function App() {
                   currentUserId={currentUser?.id}
                   onEdit={(d) => setEditingDonor(d)}
                   onDelete={handleDeleteDonor}
+                  onChat={handleOpenChat}
                 />
               ))}
             </AnimatePresence>

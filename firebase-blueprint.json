@@ -65,6 +65,32 @@
         "type": { "type": "string", "enum": ["hospital", "blood_bank"] }
       },
       "required": ["id", "name", "location", "phone", "type"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Conversation between two users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array" },
+        "lastMessage": { "type": "string" },
+        "lastTimestamp": { "type": "string", "format": "date-time" },
+        "participantNames": { "type": "object" }
+      },
+      "required": ["id", "participants"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Single message in a chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "chatId", "senderId", "text", "timestamp"]
     }
   },
   "firestore": {
@@ -83,6 +109,14 @@
     "/hospitals/{hospitalId}": {
       "schema": "Hospital",
       "description": "Blood banks and hospitals"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Conversations"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a chat"
     }
   }
 }
