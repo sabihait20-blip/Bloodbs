@@ -54,9 +54,13 @@ export default function App() {
     const testConnection = async () => {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. The client is offline.");
+      } catch (error: any) {
+        if (error?.code === 'unavailable' || error?.message?.includes('the client is offline')) {
+          console.error("Firestore Connection Error: ", error.message);
+          setToast({ 
+            message: "সার্ভারের সাথে সংযোগ বিচ্ছিন্ন হয়েছে। ইন্টারনেট চেক করুন।", 
+            type: 'error' 
+          });
         }
       }
     };
