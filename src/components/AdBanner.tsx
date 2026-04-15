@@ -44,12 +44,18 @@ export function AdBanner() {
               transition={{ duration: 0.5 }}
               className="absolute inset-0 block"
             >
-              <img
-                src={ads[currentIndex].image}
-                alt={`Ad ${ads[currentIndex].id}`}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+              {ads[currentIndex].image ? (
+                <img
+                  src={ads[currentIndex].image}
+                  alt={`Ad ${ads[currentIndex].id}`}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
+                  বিজ্ঞাপন
+                </div>
+              )}
             </motion.a>
           </AnimatePresence>
           

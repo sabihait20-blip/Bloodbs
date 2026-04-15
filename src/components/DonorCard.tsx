@@ -64,12 +64,18 @@ export const DonorCard: React.FC<{
           {/* Profile Image */}
           <div className="relative">
             <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-red-100 shadow-inner">
-              <img
-                src={donor.image}
-                alt={donor.name}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+              {donor.image ? (
+                <img
+                  src={donor.image}
+                  alt={donor.name}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full bg-red-50 flex items-center justify-center text-red-300">
+                  <Heart size={32} />
+                </div>
+              )}
             </div>
             <motion.div 
               animate={{ 

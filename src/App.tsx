@@ -11,10 +11,11 @@ import { DonorListModal } from './components/DonorListModal';
 import { ChatModal } from './components/ChatModal';
 import { INITIAL_HOSPITALS } from './lib/hospitalData';
 import { BloodGroup, Donor, User, Request, Hospital } from './types';
-import { db, auth } from './firebase';
+import { db, auth, onForegroundMessage } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc, getDocs, orderBy, serverTimestamp, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
+import { requestNotificationPermission } from './lib/notificationUtils';
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -81,11 +82,15 @@ export default function App() {
           } else {
             setIsAdmin(false);
           }
+          // Request notification permission
+          requestNotificationPermission(firebaseUser.uid);
         } else {
           setCurrentUser({ id: firebaseUser.uid, name: firebaseUser.displayName || 'User', email: firebaseUser.email || '' });
           if (firebaseUser.email === 'sabihait20@gmail.com') {
             setIsAdmin(true);
           }
+          // Request notification permission
+          requestNotificationPermission(firebaseUser.uid);
         }
       } else {
         setCurrentUser(null);
@@ -133,6 +138,20 @@ export default function App() {
       donorsUnsubscribe();
       requestsUnsubscribe();
     };
+  }, []);
+
+  // Foreground Notification Listener
+  useEffect(() => {
+    const unsubscribe = onForegroundMessage((payload) => {
+      console.log('Foreground message received:', payload);
+      if (payload.notification) {
+        setToast({
+          message: `${payload.notification.title}: ${payload.notification.body}`,
+          type: 'success'
+        });
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
