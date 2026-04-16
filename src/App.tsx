@@ -476,12 +476,6 @@ export default function App() {
                   >
                     প্রোফাইল এডিট
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('donors')}
-                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
-                  >
-                    ড্যাশবোর্ড
-                  </button>
                   <div className="border-t border-slate-100 my-1" />
                   <button 
                     onClick={handleLogout}
