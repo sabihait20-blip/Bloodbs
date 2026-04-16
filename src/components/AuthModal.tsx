@@ -156,7 +156,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           uid: result.user.uid,
           name: formData.name,
           email: formData.email,
-          role: 'user'
+          role: 'user',
+          points: 100,
+          badges: ['নতুন সৈনিক']
         };
         
         // Create user doc
@@ -174,7 +176,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           available: true,
           facebookUrl: formData.facebookUrl,
           whatsappNumber: formData.whatsappNumber,
-          donationCount: formData.donationCount
+          donationCount: formData.donationCount,
+          points: 100,
+          badges: ['নতুন সৈনিক']
         };
         await setDoc(doc(db, 'donors', result.user.uid), donorData);
         

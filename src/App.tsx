@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2, Building2, MessageSquare } from 'lucide-react';
+import { Search, Heart, Droplets, Users, Plus, MapPin, Settings, Shield, ShieldOff, LogIn, LogOut, User as UserIcon, Bell, X, Check, Phone, LayoutDashboard, Image as ImageIcon, Trash2, Building2, MessageSquare, ShieldCheck } from 'lucide-react';
 import { DonorCard } from './components/DonorCard';
 import { AddDonorModal } from './components/AddDonorModal';
 import { AuthModal } from './components/AuthModal';
@@ -9,6 +9,7 @@ import { AdBanner } from './components/AdBanner';
 import { HospitalDirectory } from './components/HospitalDirectory';
 import { DonorListModal } from './components/DonorListModal';
 import { ChatModal } from './components/ChatModal';
+import { VerificationModal } from './components/VerificationModal';
 import { INITIAL_HOSPITALS } from './lib/hospitalData';
 import { BloodGroup, Donor, User, Request, Hospital } from './types';
 import { db, auth, onForegroundMessage } from './firebase';
@@ -16,6 +17,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc, getDocs, orderBy, serverTimestamp, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { requestNotificationPermission } from './lib/notificationUtils';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line } from 'recharts';
 
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -23,12 +25,19 @@ export default function App() {
   const [donors, setDonors] = useState<Donor[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<BloodGroup | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot' | 'edit'>('login');
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isDonorListModalOpen, setIsDonorListModalOpen] = useState(false);
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState<{ id: string; name: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'donors' | 'admin' | 'hospitals'>('donors');
@@ -419,62 +428,68 @@ export default function App() {
         </AnimatePresence>
       </div>
       {/* Header */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50 backdrop-blur-md bg-white/80">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <header className="bg-white/80 border-b border-slate-100 sticky top-0 z-50 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+          {/* Logo */}
+          <div 
+            className="flex items-center gap-3 cursor-pointer shrink-0"
+            onClick={() => setActiveTab('donors')}
+          >
             <motion.div 
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-200"
+              className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-200"
             >
-              <Heart className="text-white fill-current" size={24} />
+              <Heart className="text-white fill-current" size={28} />
             </motion.div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
-              রক্তদান
-            </h1>
+            <div className="hidden sm:block">
+              <h1 className="text-2xl font-black bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent leading-none">
+                রক্ত সৈনিক
+              </h1>
+              <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase mt-0.5">Blood Donation</p>
+            </div>
+          </div>
+
+          {/* Clock */}
+          <div className="flex items-center gap-2 text-slate-600 font-mono font-bold bg-slate-100 px-4 py-2 rounded-xl">
+            {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
           
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button 
-                onClick={() => setActiveTab(activeTab === 'admin' ? 'donors' : 'admin')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
-                  activeTab === 'admin' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {activeTab === 'donors' ? <LayoutDashboard size={20} /> : <Users size={20} />}
-                {activeTab === 'donors' ? 'অ্যাডমিন ড্যাশবোর্ড' : 'হোম'}
-              </button>
-            )}
-            <button 
-              onClick={() => setActiveTab(activeTab === 'hospitals' ? 'donors' : 'hospitals')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
-                activeTab === 'hospitals' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Building2 size={20} />
-              হাসপাতাল
-            </button>
-            
+          {/* Actions */}
+          <div className="flex items-center gap-2 sm:gap-4">
             {currentUser ? (
-              <div className="flex items-center gap-2">
+              <div className="relative group">
                 <button 
-                  onClick={() => {
-                    setAuthModalMode('edit');
-                    setIsAuthModalOpen(true);
-                  }}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-slate-700 hover:bg-slate-200 transition-colors"
+                  className="flex items-center gap-2 p-1 pr-3 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all"
                 >
-                  <UserIcon size={16} className="text-red-500" />
-                  <span className="text-sm font-medium">{currentUser.name}</span>
+                  <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold text-sm overflow-hidden">
+                    {currentUser.name.charAt(0)}
+                  </div>
+                  <span className="hidden sm:inline text-sm font-bold text-slate-700">{currentUser.name.split(' ')[0]}</span>
                 </button>
-                <button 
-                  onClick={handleLogout}
-                  className="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200 transition-colors"
-                  title="লগআউট"
-                >
-                  <LogOut size={20} />
-                </button>
+                
+                {/* Profile Popup */}
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <button 
+                    onClick={() => { setAuthModalMode('edit'); setIsAuthModalOpen(true); }}
+                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+                  >
+                    প্রোফাইল এডিট
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('donors')}
+                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+                  >
+                    ড্যাশবোর্ড
+                  </button>
+                  <div className="border-t border-slate-100 my-1" />
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                  >
+                    লগআউট
+                  </button>
+                </div>
               </div>
             ) : (
               <button 
@@ -482,10 +497,10 @@ export default function App() {
                   setAuthModalMode('login');
                   setIsAuthModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-full font-semibold hover:bg-slate-200 transition-colors"
+                className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-100 transition-all active:scale-95"
               >
                 <LogIn size={20} />
-                <span className="hidden sm:inline">লগইন</span>
+                <span>লগইন</span>
               </button>
             )}
           </div>
@@ -508,6 +523,13 @@ export default function App() {
         currentUser={currentUser}
         targetUserId={chatTarget?.id}
         targetUserName={chatTarget?.name}
+      />
+
+      <VerificationModal
+        isOpen={isVerificationModalOpen}
+        onClose={() => setIsVerificationModalOpen(false)}
+        userId={currentUser?.id || ''}
+        onSuccess={() => showToast('আপনার ভেরিফিকেশন আবেদন জমা হয়েছে।')}
       />
 
       {/* Floating Chat Button */}
@@ -563,9 +585,22 @@ export default function App() {
                   
                   <div className="space-y-3">
                     <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
-                      <span className="text-slate-500 text-sm">স্ট্যাটাস</span>
-                      <span className="px-2 py-1 bg-emerald-100 text-emerald-600 text-xs font-bold rounded-lg">সক্রিয় দাতা</span>
+                      <span className="text-slate-500 text-sm">পয়েন্ট</span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs font-bold rounded-lg">{userDonorProfile?.points || 0} XP</span>
                     </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-slate-500 text-sm">স্ট্যাটাস</span>
+                      <span className="px-2 py-1 bg-emerald-100 text-emerald-600 text-xs font-bold rounded-lg">
+                        {userDonorProfile?.isVerified ? 'ভেরিফাইড দাতা' : 'সক্রিয় দাতা'}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => setIsVerificationModalOpen(true)}
+                      className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 mt-2"
+                    >
+                      <ShieldCheck size={16} />
+                      {userDonorProfile?.nidUrl ? 'ভেরিফিকেশন পেন্ডিং' : 'ভেরিফিকেশন করুন'}
+                    </button>
                     <button 
                       onClick={() => {
                         setAuthModalMode('edit');
@@ -733,36 +768,106 @@ export default function App() {
         </div>
       </section>
 
-      {/* Stats Summary */}
+      {/* Stats Section */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'মোট দাতা', value: `${stats.totalDonors}`, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', onClick: () => setIsDonorListModalOpen(true) },
-            { label: 'রক্তদান সম্পন্ন', value: `${stats.donationsCompleted}`, icon: Heart, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'জরুরি অনুরোধ', value: `${stats.urgentRequests}`, icon: Droplets, color: 'text-orange-600', bg: 'bg-orange-50' },
-            { label: 'সক্রিয় এলাকা', value: `${stats.activeDistricts} জেলা`, icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'মোট দাতা', value: stats.totalDonors, icon: Users, color: 'bg-blue-50 text-blue-600' },
+            { label: 'রক্তদান সম্পন্ন', value: stats.donationsCompleted, icon: Heart, color: 'bg-red-50 text-red-600' },
+            { label: 'জরুরি অনুরোধ', value: stats.urgentRequests, icon: Droplets, color: 'bg-orange-50 text-orange-600' },
+            { label: 'সক্রিয় এলাকা', value: stats.activeDistricts, icon: MapPin, color: 'bg-emerald-50 text-emerald-600' },
           ].map((stat, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              onClick={stat.onClick}
-              className={`bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:border-red-100 transition-all group ${stat.onClick ? 'cursor-pointer hover:shadow-md hover:scale-105 active:scale-95' : ''}`}
+              className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center group hover:shadow-xl hover:shadow-slate-100 transition-all"
             >
-              <motion.div 
-                animate={stat.icon === Droplets || stat.icon === Heart ? { scale: [1, 1.1, 1] } : {}}
-                transition={{ duration: 2, repeat: Infinity }}
-                className={`w-12 h-12 ${stat.bg} rounded-xl flex items-center justify-center ${stat.color} group-hover:scale-110 transition-transform`}
-              >
+              <div className={`w-12 h-12 ${stat.color} rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
                 <stat.icon size={24} />
-              </motion.div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">{stat.label}</p>
-                <p className="text-lg font-bold text-slate-900">{stat.value}</p>
               </div>
+              <p className="text-2xl font-black text-slate-800">{stat.value}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">{stat.label}</p>
             </motion.div>
           ))}
+        </div>
+      </section>
+
+      {/* Leaderboard & Top Donors */}
+      <section className="max-w-7xl mx-auto px-4 mb-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+              <Heart className="text-red-600" /> সেরা রক্তদাতা
+            </h2>
+            <button 
+              onClick={() => setIsDonorListModalOpen(true)}
+              className="text-sm font-bold text-red-600 hover:underline"
+            >
+              সবাইকে দেখুন
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {donors.sort((a, b) => (b.donationCount || 0) - (a.donationCount || 0)).slice(0, 4).map(donor => (
+              <DonorCard 
+                key={donor.id} 
+                donor={donor} 
+                isAdmin={isAdmin}
+                currentUserId={currentUser?.id}
+                onEdit={setEditingDonor}
+                onDelete={(id) => setConfirmAction({
+                  message: 'আপনি কি নিশ্চিতভাবে এই দাতা প্রোফাইলটি ডিলিট করতে চান?',
+                  onConfirm: async () => {
+                    try {
+                      await deleteDoc(doc(db, 'donors', id));
+                      showToast('দাতা প্রোফাইলটি ডিলিট করা হয়েছে।');
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.DELETE, `donors/${id}`);
+                    }
+                    setConfirmAction(null);
+                  }
+                })}
+                onChat={(id, name) => {
+                  setChatTarget({ id, name });
+                  setIsChatModalOpen(true);
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <ShieldCheck className="text-blue-500" /> লিডারবোর্ড (XP)
+          </h3>
+          <div className="space-y-4">
+            {donors.sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 5).map((donor, i) => (
+              <div key={donor.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                  i === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                  i === 1 ? 'bg-slate-100 text-slate-700' : 
+                  i === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'
+                }`}>
+                  {i + 1}
+                </div>
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-100">
+                  <img src={donor.image || `https://ui-avatars.com/api/?name=${donor.name}`} alt={donor.name} className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-800">{donor.name}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{donor.bloodGroup} Group</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-blue-600">{donor.points || 0}</p>
+                  <p className="text-[10px] text-slate-400 font-bold">XP</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="w-full mt-6 py-3 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-100 transition-colors">
+            সম্পূর্ণ লিডারবোর্ড দেখুন
+          </button>
         </div>
       </section>
 
@@ -900,6 +1005,8 @@ export default function App() {
 function AdminDashboard({ setConfirmAction, showToast }: { setConfirmAction: (action: any) => void; showToast: (msg: string, type?: 'success' | 'error') => void }) {
   const [ads, setAds] = useState<any[]>([]);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [pendingDonors, setPendingDonors] = useState<Donor[]>([]);
+  const [donors, setDonors] = useState<Donor[]>([]);
   const [newAd, setNewAd] = useState({ image: '', link: '' });
   const [newHospital, setNewHospital] = useState({ name: '', location: '', phone: '', type: 'hospital' as 'hospital' | 'blood_bank' });
   const [isAdding, setIsAdding] = useState(false);
@@ -918,11 +1025,42 @@ function AdminDashboard({ setConfirmAction, showToast }: { setConfirmAction: (ac
       handleFirestoreError(error, OperationType.LIST, 'hospitals');
     });
 
+    const donorsUnsubscribe = onSnapshot(collection(db, 'donors'), (snapshot) => {
+      const allDonors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Donor));
+      setDonors(allDonors);
+      setPendingDonors(allDonors.filter(d => (d as any).verificationStatus === 'pending'));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'donors');
+    });
+
     return () => {
       adsUnsubscribe();
       hospitalsUnsubscribe();
+      donorsUnsubscribe();
     };
   }, []);
+
+  const bloodGroupStats = useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    donors.forEach(d => {
+      counts[d.bloodGroup] = (counts[d.bloodGroup] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [donors]);
+
+  const COLORS = ['#ef4444', '#f87171', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d', '#fca5a5', '#fee2e2'];
+
+  const handleVerifyDonor = async (id: string, approve: boolean) => {
+    try {
+      await updateDoc(doc(db, 'donors', id), {
+        isVerified: approve,
+        verificationStatus: approve ? 'approved' : 'rejected'
+      });
+      showToast(approve ? 'দাতা ভেরিফাইড করা হয়েছে।' : 'আবেদন বাতিল করা হয়েছে।');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `donors/${id}`);
+    }
+  };
 
   const handleSeedHospitals = async () => {
     try {
@@ -997,10 +1135,108 @@ function AdminDashboard({ setConfirmAction, showToast }: { setConfirmAction: (ac
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      <h2 className="text-3xl font-bold mb-8">অ্যাডমিন ড্যাশবোর্ড</h2>
-      
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+    <div className="max-w-7xl mx-auto px-4 py-12 space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h2 className="text-4xl font-black text-slate-900">অ্যাডমিন ড্যাশবোর্ড</h2>
+        <div className="flex gap-3">
+          <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">মোট দাতা</p>
+            <p className="text-2xl font-black text-red-600">{donors.length}</p>
+          </div>
+          <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">পেন্ডিং ভেরিফিকেশন</p>
+            <p className="text-2xl font-black text-blue-600">{pendingDonors.length}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Analytics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <Droplets className="text-red-500" /> ব্লাড গ্রুপ ডিস্ট্রিবিউশন
+          </h3>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={bloodGroupStats}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {bloodGroupStats.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                />
+                <Legend verticalAlign="bottom" height={36}/>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <ShieldCheck className="text-blue-500" /> ভেরিফিকেশন রিকোয়েস্ট
+          </h3>
+          <div className="space-y-4 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+            {pendingDonors.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
+                <ShieldCheck size={48} className="mb-2 opacity-20" />
+                <p>কোনো পেন্ডিং রিকোয়েস্ট নেই</p>
+              </div>
+            ) : (
+              pendingDonors.map(donor => (
+                <div key={donor.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold text-red-600">
+                        {donor.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800">{donor.name}</p>
+                        <p className="text-xs text-slate-500">{donor.bloodGroup} | {donor.location}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleVerifyDonor(donor.id, true)}
+                        className="p-2 bg-emerald-100 text-emerald-600 rounded-xl hover:bg-emerald-200 transition-colors"
+                        title="Approve"
+                      >
+                        <Check size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleVerifyDonor(donor.id, false)}
+                        className="p-2 bg-red-100 text-red-600 rounded-xl hover:bg-red-200 transition-colors"
+                        title="Reject"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a href={donor.nidUrl} target="_blank" rel="noreferrer" className="text-[10px] bg-white p-2 rounded-lg border border-slate-200 text-center font-bold text-slate-600 hover:border-blue-300 transition-colors">
+                      NID View
+                    </a>
+                    <a href={donor.medicalReportUrl} target="_blank" rel="noreferrer" className="text-[10px] bg-white p-2 rounded-lg border border-slate-200 text-center font-bold text-slate-600 hover:border-blue-300 transition-colors">
+                      Report View
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold flex items-center gap-2">
             <ImageIcon /> বিজ্ঞাপন ম্যানেজমেন্ট

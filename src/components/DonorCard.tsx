@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Phone, MapPin, Calendar, Droplets, Facebook, MessageCircle, Edit2, Trash2, Heart, MessageSquare } from 'lucide-react';
+import { Phone, MapPin, Calendar, Droplets, Facebook, MessageCircle, Edit2, Trash2, Heart, MessageSquare, ShieldCheck } from 'lucide-react';
 import { Donor } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -96,7 +96,12 @@ export const DonorCard: React.FC<{
           {/* Basic Info */}
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-800 pr-12">{donor.name}</h3>
+              <div className="flex items-center gap-2 pr-12">
+                <h3 className="text-xl font-bold text-slate-800">{donor.name}</h3>
+                {donor.isVerified && (
+                  <ShieldCheck size={20} className="text-blue-500 fill-blue-50" />
+                )}
+              </div>
               {!isAdmin && (
                 <motion.div 
                   animate={{ 
@@ -121,6 +126,15 @@ export const DonorCard: React.FC<{
             
             {/* Social Links */}
             <div className="flex items-center gap-3 mt-3">
+              {donor.badges && donor.badges.length > 0 && (
+                <div className="flex gap-1">
+                  {donor.badges.map((badge, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-yellow-50 text-yellow-700 text-[10px] font-bold rounded-lg border border-yellow-100">
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              )}
               {donor.facebookUrl && (
                 <a 
                   href={donor.facebookUrl} 
